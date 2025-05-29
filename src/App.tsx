@@ -7,8 +7,6 @@ import { theme } from './styles/theme';
 import AppRoutes from './routes/AppRoutes';
 
 const App = () => {
-  const base = process.env.NODE_ENV === 'production' ? '/vocal-coach-site' : '/';
-
   return (
     <ThemeProvider theme={theme}>
       <BrowserRouter basename="/vocal-coach-site">
