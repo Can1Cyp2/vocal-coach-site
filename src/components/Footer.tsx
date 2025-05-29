@@ -1,4 +1,5 @@
 import React from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   FacebookIcon,
   InstagramIcon,
@@ -26,6 +27,18 @@ import {
 } from '../styles/Footer'
 
 export const Footer = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const handleNavigateToSection = (sectionId: string) => {
+    if (location.pathname === '/') {
+      const section = document.getElementById(sectionId)
+      section?.scrollIntoView({ behavior: 'smooth' })
+    } else {
+      navigate(`/#${sectionId}`)
+    }
+  }
+
   return (
     <FooterWrapper>
       <FooterContainer>
@@ -40,20 +53,20 @@ export const Footer = () => {
           <FooterColumn>
             <FooterSubtitle>Quick Links</FooterSubtitle>
             <FooterList>
-              <li><FooterLink href="#">Home</FooterLink></li>
-              <li><FooterLink href="#about">About</FooterLink></li>
-              <li><FooterLink href="#services">Services</FooterLink></li>
-              <li><FooterLink href="#contact">Contact</FooterLink></li>
+              <li><FooterLink onClick={() => navigate('/')}>Home</FooterLink></li>
+              <li><FooterLink onClick={() => handleNavigateToSection('about')}>About</FooterLink></li>
+              <li><FooterLink onClick={() => handleNavigateToSection('services')}>Services</FooterLink></li>
+              <li><FooterLink onClick={() => handleNavigateToSection('contact')}>Contact</FooterLink></li>
             </FooterList>
           </FooterColumn>
 
           <FooterColumn>
             <FooterSubtitle>Services</FooterSubtitle>
             <FooterList>
-              <li><FooterLink href="#">Vocal Technique</FooterLink></li>
-              <li><FooterLink href="#">Range Improvement</FooterLink></li>
-              <li><FooterLink href="#">Audition Prep</FooterLink></li>
-              <li><FooterLink href="#">Performance Coaching</FooterLink></li>
+              <li><FooterLink onClick={() => handleNavigateToSection('services')}>Vocal Technique</FooterLink></li>
+              <li><FooterLink onClick={() => handleNavigateToSection('services')}>Range Improvement</FooterLink></li>
+              <li><FooterLink onClick={() => handleNavigateToSection('services')}>Audition Prep</FooterLink></li>
+              <li><FooterLink onClick={() => handleNavigateToSection('services')}>Performance Coaching</FooterLink></li>
             </FooterList>
           </FooterColumn>
 
