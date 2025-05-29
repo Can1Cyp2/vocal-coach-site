@@ -1,10 +1,10 @@
 {
   "files": {
-    "main.js": "/vocal-coach-site/static/js/main.9dea8958.js",
+    "main.js": "/vocal-coach-site/static/js/main.49f3235c.js",
     "index.html": "/vocal-coach-site/index.html",
-    "main.9dea8958.js.map": "/vocal-coach-site/static/js/main.9dea8958.js.map"
+    "main.49f3235c.js.map": "/vocal-coach-site/static/js/main.49f3235c.js.map"
   },
   "entrypoints": [
-    "static/js/main.9dea8958.js"
+    "static/js/main.49f3235c.js"
   ]
 }
