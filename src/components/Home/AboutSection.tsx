@@ -36,7 +36,7 @@ export const AboutSection = () => {
             />
           </AboutImageWrapper>
           <AboutText>
-            <CoachName>Sarah Johnson</CoachName>
+            <CoachName>JP</CoachName>
             <CoachDescription>
               With over 15 years of experience in vocal training and performance, I'm
               dedicated to helping singers of all levels discover their unique voice

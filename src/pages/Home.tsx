@@ -1,8 +1,8 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import { AboutSection } from '../components/Home/AboutSection'
 import { ServicesSection } from '../components/Home/ServicesSection'
 import { CTASection } from '../components/Home/CTASection'
-import { Footer } from '../components/Footer'
 
 import {
   HeroSectionWrapper,
@@ -20,6 +20,18 @@ import {
 
 const Home = () => {
   const isLoggedIn = false // Replace with context logic later
+  const { hash } = useLocation()
+
+  useEffect(() => {
+    if (hash) {
+      const element = document.querySelector(hash)
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth' })
+        }, 0)
+      }
+    }
+  }, [hash])
 
   return (
     <>
@@ -54,7 +66,6 @@ const Home = () => {
       <AboutSection />
       <ServicesSection />
       <CTASection isLoggedIn={isLoggedIn} />
-      <Footer />
     </>
   )
 }

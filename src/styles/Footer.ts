@@ -51,13 +51,20 @@ export const FooterList = styled.ul`
 `
 
 export const FooterLink = styled.a`
-  colour: ${({ theme }) => theme.colours.surface};
-  transition: colour 0.3s ease;
+  color: ${({ theme }) => theme.colours.primary};
+  text-decoration: none;
+  font-size: ${({ theme }) => theme.fontSizes.small};
+  display: inline-block;
+  cursor: pointer;
+  transition: color 0.2s ease;
 
   &:hover {
-    colour: ${({ theme }) => theme.colours.white};
+    color: ${({ theme }) => theme.colours.accent};
+    text-decoration: underline;
   }
 `
+
+
 
 export const FooterContact = styled.div``
 

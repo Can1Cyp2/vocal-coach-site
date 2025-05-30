@@ -1,4 +1,5 @@
-// src/types/index.d.ts
+/// <reference types="vite/client" />
+
 import 'styled-components'
 import { theme } from '../styles/theme'
 
