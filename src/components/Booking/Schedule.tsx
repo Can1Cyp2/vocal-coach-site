@@ -45,7 +45,7 @@ const Schedule = () => {
   const [unbooking, setUnbooking] = useState(false)
   const { user } = useAuth()
 
-  // 🔄 Fetch bookings on load
+  // Fetch bookings on load:
   useEffect(() => {
     const fetchBookings = async () => {
       const { data, error } = await supabase
@@ -62,7 +62,7 @@ const Schedule = () => {
 
       if (data) {
         for (const booking of data) {
-          const key = booking.booking_time // string like "2024-06-01 2:00 PM"
+          const key = booking.booking_time
           slots[key] = {
             user_id: booking.user_id,
             status: booking.status,

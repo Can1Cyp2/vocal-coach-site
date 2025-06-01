@@ -60,7 +60,6 @@ export const DayLabel = styled.div`
   text-align: center;
 `
 
-// ✅ Use $ prefix for transient props
 export const DayCell = styled.div<{
   $isToday?: boolean
   $isCurrentMonth?: boolean
