@@ -61,20 +61,18 @@ export const DayLabel = styled.div`
 `
 
 export const DayCell = styled.div<{
-  isToday?: boolean
-  isCurrentMonth?: boolean
-  booked?: boolean
+  $isToday?: boolean
+  $isCurrentMonth?: boolean
 }>`
-  background-color: ${({ isToday, theme }) =>
-    isToday ? theme.colours.accent : theme.colours.surface};
-  color: ${({ isCurrentMonth, theme }) =>
-    isCurrentMonth ? theme.colours.text : theme.colours.subtext};
+  background-color: ${({ $isToday, theme }) =>
+    $isToday ? theme.colours.accent : theme.colours.surface};
+  color: ${({ $isCurrentMonth, theme }) =>
+    $isCurrentMonth ? theme.colours.text : theme.colours.subtext};
   padding: 1rem;
   border-radius: 0.5rem;
   text-align: center;
   cursor: pointer;
-  box-shadow: ${({ booked }) =>
-    booked ? 'inset 0 0 0 2px #2ecc71' : 'inset 0 0 0 1px rgba(0, 0, 0, 0.05)'};
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
   transition: background 0.2s ease;
 
   &:hover {
@@ -94,7 +92,11 @@ export const DayCell = styled.div<{
     color: ${({ theme }) => theme.colours.subtext};
   }
 `
-export const SlotButton = styled.button<{ booked?: boolean }>`
+
+export const SlotButton = styled.button<{
+  $booked?: boolean
+  $own?: boolean
+}>`
   display: block;
   width: 100%;
   margin-top: 0.25rem;
@@ -102,15 +104,15 @@ export const SlotButton = styled.button<{ booked?: boolean }>`
   font-size: 0.75rem;
   border: none;
   border-radius: 0.25rem;
-  background-color: ${({ booked, theme }) =>
-    booked ? theme.colours.subtext : theme.colours.primary};
-  color: ${({ booked, theme }) =>
-    booked ? theme.colours.text : theme.colours.white};
+  background-color: ${({ $booked, theme }) =>
+    $booked ? theme.colours.subtext : theme.colours.primary};
+  color: ${({ $booked, theme }) =>
+    $booked ? theme.colours.text : theme.colours.white};
   cursor: pointer;
   transition: background 0.2s ease;
 
   &:hover {
-    background-color: ${({ booked, theme }) =>
-      booked ? theme.colours.subtext : theme.colours.secondary};
+    background-color: ${({ $booked, theme }) =>
+      $booked ? theme.colours.subtext : theme.colours.secondary};
   }
 `
