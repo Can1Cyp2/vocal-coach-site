@@ -7,6 +7,7 @@ import Login from '../components/Login'
 import Signup from '../pages/Signup'
 import Booking from '../pages/Booking'
 import Layout from '../components/Layout'
+import Account from '../pages/Account'
 
 const AppRoutes = () => {
   return (
@@ -17,6 +18,7 @@ const AppRoutes = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/booking" element={<Booking />} />
+        <Route path="/account" element={<Account />} />
       </Route>
     </Routes>
   )
