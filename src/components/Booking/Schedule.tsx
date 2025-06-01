@@ -45,13 +45,11 @@ const Schedule = () => {
   const [unbooking, setUnbooking] = useState(false)
   const { user } = useAuth()
 
-  // Fetch bookings on load:
   useEffect(() => {
     const fetchBookings = async () => {
       const { data, error } = await supabase
         .from('bookings')
         .select('booking_time, user_id, status')
-        .eq('status', 'booked')
 
       if (error) {
         console.error('Error fetching bookings:', error.message)
@@ -59,14 +57,12 @@ const Schedule = () => {
       }
 
       const slots: { [key: string]: BookedSlotInfo } = {}
-
-      if (data) {
-        for (const booking of data) {
-          const key = booking.booking_time
-          slots[key] = {
-            user_id: booking.user_id,
-            status: booking.status,
-          }
+      for (const booking of data || []) {
+        const dateObj = new Date(booking.booking_time)
+        const key = format(dateObj, 'yyyy-MM-dd h:mm a')
+        slots[key] = {
+          user_id: booking.user_id,
+          status: booking.status,
         }
       }
 
@@ -81,21 +77,21 @@ const Schedule = () => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: 0 })
     const end = endOfWeek(endOfMonth(month), { weekStartsOn: 0 })
 
-    let day = start
+    let day = start;
     while (day <= end) {
-      const dateKey = format(day, 'yyyy-MM-dd')
-      const isCurrent = isSameMonth(day, month)
       const currentDay = new Date(day);
+      const dateKey = format(currentDay, 'yyyy-MM-dd');
+      const isCurrent = isSameMonth(currentDay, month);
 
       days.push(
         <DayCell key={dateKey} $isToday={isToday(currentDay)} $isCurrentMonth={isCurrent}>
           <span>{format(currentDay, 'd')}</span>
           {isCurrent &&
             times.map(time => {
-              const slotKey = `${dateKey} ${time}`
-              const booking = bookedSlots[slotKey]
-              const isBooked = !!booking
-              const isMine = booking?.user_id === user?.id
+              const slotKey = `${dateKey} ${time}`;
+              const booking = bookedSlots[slotKey];
+              const isBooked = !!booking;
+              const isMine = booking?.user_id === user?.id;
 
               return (
                 <SlotButton
@@ -103,26 +99,24 @@ const Schedule = () => {
                   $booked={isBooked}
                   $own={isMine}
                   onClick={() => handleSlotClick(currentDay, time, isBooked && isMine)}
-                  disabled={isBooked && !isMine}
+                  disabled={isBooked}
                 >
                   {time}
                 </SlotButton>
-              )
+              );
             })}
         </DayCell>
-      )
+      );
 
-      day = addDays(day, 1)
+      day = addDays(day, 1);
     }
 
     return days
   }
 
   const handleSlotClick = (day: Date, time: string, canUnbook: boolean) => {
-    console.log('Clicked date:', day.toISOString()); // log actual date
     const key = `${format(day, 'yyyy-MM-dd')} ${time}`
     const label = `${format(day, 'PPP')} at ${time}`
-
     setSelectedSlot({ key, label })
     setUnbooking(canUnbook)
     setModalOpen(true)
@@ -136,7 +130,7 @@ const Schedule = () => {
     const { error } = await supabase.from('bookings').insert([
       {
         user_id: user.id,
-        booking_time: selectedSlot.key,
+        booking_time: bookingKey,
         duration_minutes: 60,
         status: 'booked',
         coach_id: null,
@@ -214,6 +208,33 @@ const Schedule = () => {
         sessionTime={selectedSlot?.label || ''}
         isUnbooking={unbooking}
       />
+
+      {/* User's upcoming sessions list: */}
+      {user && (
+        <div style={{ marginTop: '3rem', padding: '1rem', borderTop: '1px solid #ccc' }}>
+          <h3 style={{ marginBottom: '1rem' }}>Your Upcoming Sessions</h3>
+          {Object.entries(bookedSlots)
+            .filter(([_, booking]) => booking.user_id === user.id)
+            .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
+            .map(([key]) => (
+              <div
+                key={key}
+                style={{
+                  background: '#f9f9f9',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '6px',
+                  marginBottom: '0.5rem',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {key}
+              </div>
+            ))}
+          {Object.values(bookedSlots).filter(b => b.user_id === user.id).length === 0 && (
+            <p style={{ fontStyle: 'italic', color: '#888' }}>No sessions booked yet.</p>
+          )}
+        </div>
+      )}
     </ScheduleSectionWrapper>
   )
 }
