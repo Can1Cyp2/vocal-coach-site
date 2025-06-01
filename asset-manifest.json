@@ -1,10 +1,12 @@
 {
   "files": {
-    "main.js": "/vocal-coach-site/static/js/main.6074e9e1.js",
+    "main.js": "/vocal-coach-site/static/js/main.7c714c5d.js",
+    "static/js/952.f3cb2314.chunk.js": "/vocal-coach-site/static/js/952.f3cb2314.chunk.js",
     "index.html": "/vocal-coach-site/index.html",
-    "main.6074e9e1.js.map": "/vocal-coach-site/static/js/main.6074e9e1.js.map"
+    "main.7c714c5d.js.map": "/vocal-coach-site/static/js/main.7c714c5d.js.map",
+    "952.f3cb2314.chunk.js.map": "/vocal-coach-site/static/js/952.f3cb2314.chunk.js.map"
   },
   "entrypoints": [
-    "static/js/main.6074e9e1.js"
+    "static/js/main.7c714c5d.js"
   ]
 }
