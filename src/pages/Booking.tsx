@@ -1,26 +1,21 @@
-import React, { useState } from 'react'
+import React from 'react'
 import Schedule from '../components/Booking/Schedule'
+import { useAuth } from '../context/AuthContext'
+
 import {
   BookingWrapper,
   BookingHeader,
   BookingText,
   AuthActions,
   AuthButton,
-  ToggleButton,
 } from '../styles/Booking/Booking'
 
 const Booking = () => {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-
-  const toggleLogin = () => setIsLoggedIn(prev => !prev)
+  const { user } = useAuth()
 
   return (
     <BookingWrapper>
-      <ToggleButton onClick={toggleLogin}>
-        {isLoggedIn ? 'Switch to Logged Out View' : 'Switch to Logged In View'}
-      </ToggleButton>
-
-      {isLoggedIn ? (
+      {user ? (
         <>
           <BookingHeader>Book a Session</BookingHeader>
           <BookingText>
