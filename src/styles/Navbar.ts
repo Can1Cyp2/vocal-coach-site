@@ -25,6 +25,7 @@ export const NavLeft = styled.div``
 export const NavRight = styled.div`
   display: flex;
   gap: 1rem;
+  align-items: center;
 `
 
 export const NavList = styled.ul`
@@ -77,4 +78,41 @@ export const NavButton = styled.a<{ $variant: 'solid' | 'outline' }>`
           color: ${theme.colours.white};
         }
       `}
+`
+
+export const UserTag = styled.span`
+  font-size: ${({ theme }) => theme.fontSizes.small};
+  color: ${({ theme }) => theme.colours.subtext};
+  background-color: ${({ theme }) => theme.colours.surface};
+  padding: 0.5rem 0.75rem;
+  border-radius: 9999px;
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+`
+
+export const Divider = styled.span`
+  width: 1px;
+  height: 24px;
+  background-color: ${({ theme }) => theme.colours.divider};
+  margin: 0 1rem;
+`
+
+export const AccountButton = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: ${({ theme }) => theme.fontSizes.small};
+  color: ${({ theme }) => theme.colours.white};
+  font-weight: ${({ theme }) => theme.fontWeights.medium};
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: background-color 0.2s;
+  cursor: pointer;
+
+  svg {
+    color: ${({ theme }) => theme.colours.white};
+  }
+
+  &:hover {
+    background-color: ${({ theme }) => theme.colours.secondary};
+  }
 `
