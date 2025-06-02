@@ -104,15 +104,29 @@ export const SlotButton = styled.button<{
   font-size: 0.75rem;
   border: none;
   border-radius: 0.25rem;
-  background-color: ${({ $booked, theme }) =>
-    $booked ? theme.colours.subtext : theme.colours.primary};
-  color: ${({ $booked, theme }) =>
-    $booked ? theme.colours.text : theme.colours.white};
-  cursor: pointer;
+  background-color: ${({ $booked, $own, theme }) =>
+    $booked
+      ? $own
+        ? theme.colours.accent // current user's booking — highlight it
+        : theme.colours.subtext // other user's booking — greyed
+      : theme.colours.primary}; // unbooked
+
+  color: ${({ $booked, $own, theme }) =>
+    $booked
+      ? $own
+        ? theme.colours.white
+        : theme.colours.background
+      : theme.colours.white};
+
+  cursor: ${({ $booked }) => ($booked ? 'not-allowed' : 'pointer')};
   transition: background 0.2s ease;
 
   &:hover {
-    background-color: ${({ $booked, theme }) =>
-      $booked ? theme.colours.subtext : theme.colours.secondary};
+    background-color: ${({ $booked, $own, theme }) =>
+      $booked
+        ? $own
+          ? theme.colours.secondary
+          : theme.colours.subtext
+        : theme.colours.secondary};
   }
 `
