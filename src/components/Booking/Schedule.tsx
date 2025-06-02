@@ -13,9 +13,12 @@ import {
   isSameMonth,
   isToday,
   format,
+  addWeeks,
+  parse,
 } from 'date-fns'
 
 import BookingModal from './BookingModal'
+import CancelModal from './CancelModal'
 import {
   ScheduleSectionWrapper,
   ScheduleContainer,
@@ -34,6 +37,31 @@ const times = ['10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 P
 interface BookedSlotInfo {
   user_id: string
   status: string
+  recurring_booking?: boolean
+  original_booking_time?: string // Store the original DB format for deletion
+}
+
+// Helper function to normalize booking time format
+const normalizeBookingTime = (bookingTime: string): string => {
+  try {
+    // Handle ISO format (2025-06-30T16:00:00.000Z)
+    if (bookingTime.includes('T')) {
+      const date = new Date(bookingTime)
+      return format(date, 'yyyy-MM-dd h:mm a')
+    }
+    
+    // Handle existing format (2025-07-14 10:00 AM)
+    if (bookingTime.includes('AM') || bookingTime.includes('PM')) {
+      return bookingTime
+    }
+    
+    // Fallback: try to parse as date
+    const date = new Date(bookingTime)
+    return format(date, 'yyyy-MM-dd h:mm a')
+  } catch (error) {
+    console.error('Error normalizing booking time:', bookingTime, error)
+    return bookingTime
+  }
 }
 
 const Schedule = () => {
@@ -43,34 +71,54 @@ const Schedule = () => {
   const [selectedSlot, setSelectedSlot] = useState<{ key: string; label: string } | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [unbooking, setUnbooking] = useState(false)
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [sessionToCancel, setSessionToCancel] = useState<{ key: string; isRecurring: boolean } | null>(null)
   const { user } = useAuth()
 
   useEffect(() => {
+    // Add check to prevent duplicate fetches
+    if (!user) return
+
     const fetchBookings = async () => {
+      console.log('Fetching bookings for user:', user.id)
+      
       const { data, error } = await supabase
         .from('bookings')
-        .select('booking_time, user_id, status')
+        .select('booking_time, user_id, status, recurring_booking')
 
       if (error) {
         console.error('Error fetching bookings:', error.message)
         return
       }
 
+      console.log('Raw booking data from DB:', data)
+
       const slots: { [key: string]: BookedSlotInfo } = {}
       for (const booking of data || []) {
-        const dateObj = new Date(booking.booking_time)
-        const key = format(dateObj, 'yyyy-MM-dd h:mm a')
-        slots[key] = {
+        const normalizedKey = normalizeBookingTime(booking.booking_time)
+        
+        console.log('Processing booking:', {
+          original: booking.booking_time,
+          normalized: normalizedKey
+        })
+        
+        // Fix: Handle string 'true'/'false' values properly
+        const isRecurring = booking.recurring_booking === true || booking.recurring_booking === 'true'
+        
+        slots[normalizedKey] = {
           user_id: booking.user_id,
           status: booking.status,
+          recurring_booking: isRecurring,
+          original_booking_time: booking.booking_time, // Store original for deletion
         }
       }
 
+      console.log('Final slots object:', slots)
       setBookedSlots(slots)
     }
 
     fetchBookings()
-  }, [user])
+  }, [user?.id]) // Only depend on user.id, not the entire user object
 
   const renderMonth = (month: Date) => {
     const days = []
@@ -122,31 +170,50 @@ const Schedule = () => {
     setModalOpen(true)
   }
 
-  const handleModalConfirm = async () => {
+  const handleModalConfirm = async (recurring = false) => {
     if (!selectedSlot || !user) return
 
-    const bookingKey = selectedSlot.key
+    const baseKey = selectedSlot.key
+    const [dateStr, ...timeParts] = baseKey.split(' ')
+    const timeStr = timeParts.join(' ')
+    const fullDateTimeStr = `${dateStr} ${timeStr}`
 
-    const { error } = await supabase.from('bookings').insert([
-      {
+    const baseDate = parse(fullDateTimeStr, 'yyyy-MM-dd h:mm a', new Date())
+
+    const bookingsToInsert = []
+
+    for (let i = 0; i < (recurring ? 12 : 1); i++) {
+      const nextDate = addWeeks(baseDate, i)
+      const slotKey = format(nextDate, 'yyyy-MM-dd h:mm a')
+
+      bookingsToInsert.push({
         user_id: user.id,
-        booking_time: bookingKey,
+        booking_time: slotKey,
         duration_minutes: 60,
         status: 'booked',
         coach_id: null,
-      },
-    ])
+        recurring_booking: recurring,
+      })
+    }
+
+    const { error } = await supabase.from('bookings').insert(bookingsToInsert)
 
     if (error) {
-      console.error('Error booking session:', error.message)
+      console.error('Error booking session(s):', error.message)
     } else {
-      setBookedSlots(prev => ({
-        ...prev,
-        [bookingKey]: {
-          user_id: user.id,
-          status: 'booked',
-        },
-      }))
+      const newSlots = Object.fromEntries(
+        bookingsToInsert.map(b => [
+          b.booking_time,
+          { 
+            user_id: user.id, 
+            status: 'booked', 
+            recurring_booking: b.recurring_booking,
+            original_booking_time: b.booking_time
+          },
+        ])
+      )
+
+      setBookedSlots(prev => ({ ...prev, ...newSlots }))
     }
 
     closeModal()
@@ -155,23 +222,158 @@ const Schedule = () => {
   const handleUnbookConfirm = async () => {
     if (!selectedSlot || !user) return
 
-    const { error } = await supabase
+    const booking = bookedSlots[selectedSlot.key]
+    const originalBookingTime = booking?.original_booking_time || selectedSlot.key
+
+    console.log('Attempting to unbook:', {
+      user_id: user.id,
+      booking_time: originalBookingTime,
+      normalized_key: selectedSlot.key
+    })
+
+    const { data, error } = await supabase
       .from('bookings')
       .delete()
       .match({
         user_id: user.id,
-        booking_time: selectedSlot.key,
+        booking_time: originalBookingTime,
       })
+      .select() // Add this to get the deleted rows back
+
+    console.log('Unbook result:', { data, error })
 
     if (error) {
       console.error('Error cancelling booking:', error.message)
+      console.error('Full error:', error)
+      alert(`Failed to cancel booking: ${error.message}`)
+    } else if (!data || data.length === 0) {
+      console.warn('No rows were deleted - this suggests a mismatch')
+      alert('Booking not found or already cancelled')
     } else {
+      console.log('Successfully cancelled booking:', data)
       const updated = { ...bookedSlots }
       delete updated[selectedSlot.key]
       setBookedSlots(updated)
     }
 
     closeModal()
+  }
+
+  const handleCancelClick = (key: string) => {
+    const booking = bookedSlots[key]
+    const isRecurring = booking?.recurring_booking === true
+    
+    setSessionToCancel({ key, isRecurring })
+    setCancelModalOpen(true)
+  }
+
+  const handleCancelConfirm = async (cancelAll: boolean) => {
+    if (!sessionToCancel || !user) return
+
+    try {
+      console.log('=== DEBUGGING DATABASE CONTENT ===')
+      const { data: allUserBookings, error: fetchError } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', user.id)
+
+      console.log('All user bookings in DB:', allUserBookings)
+      console.log('Database booking_time values:', allUserBookings?.map(b => b.booking_time))
+
+      const booking = bookedSlots[sessionToCancel.key]
+      const originalBookingTime = booking?.original_booking_time || sessionToCancel.key
+
+      console.log('Session key we\'re trying to cancel:', sessionToCancel.key)
+      console.log('Booking object from state:', booking)
+      console.log('Original booking time to match:', originalBookingTime)
+      console.log('Session to cancel:', sessionToCancel)
+
+      let deleteQuery
+      let debugInfo = {}
+
+      if (cancelAll && sessionToCancel.isRecurring) {
+        // Delete all recurring sessions for this user
+        debugInfo = {
+          type: 'recurring',
+          user_id: user.id,
+          recurring_booking: true
+        }
+        deleteQuery = supabase
+          .from('bookings')
+          .delete()
+          .match({
+            user_id: user.id,
+            recurring_booking: true
+          })
+          .select() // Add select to get deleted rows
+      } else {
+        // Delete just this specific session using the original booking time
+        debugInfo = {
+          type: 'single',
+          user_id: user.id,
+          booking_time: originalBookingTime
+        }
+        deleteQuery = supabase
+          .from('bookings')
+          .delete()
+          .match({
+            user_id: user.id,
+            booking_time: originalBookingTime
+          })
+          .select() // Add select to get deleted rows
+      }
+
+      console.log('Attempting to delete booking with:', debugInfo)
+
+      const { data, error } = await deleteQuery
+
+      console.log('Delete result:', { data, error })
+
+      if (error) {
+        console.error('Error deleting booking:', error.message)
+        alert(`Failed to cancel booking: ${error.message}`)
+      } else if (!data || data.length === 0) {
+        console.warn('No rows were deleted - this suggests a mismatch')
+        console.log('Available bookings in DB that match user_id:', 
+          allUserBookings?.filter(b => b.user_id === user.id))
+        alert('Booking not found or already cancelled')
+      } else {
+        console.log('Successfully deleted booking(s):', data)
+        
+        const updated = { ...bookedSlots }
+
+        if (cancelAll && sessionToCancel.isRecurring) {
+          // Remove all recurring sessions from local state
+          for (const k of Object.keys(bookedSlots)) {
+            if (
+              bookedSlots[k].user_id === user.id &&
+              bookedSlots[k].recurring_booking === true
+            ) {
+              delete updated[k]
+            }
+          }
+        } else {
+          // Remove just this session from local state
+          delete updated[sessionToCancel.key]
+        }
+
+        setBookedSlots(updated)
+      }
+    } catch (err) {
+      console.error('Error in cancel operation:', err)
+      if (err instanceof Error) {
+        alert(`Failed to cancel booking: ${err.message}`)
+      } else {
+        alert('Failed to cancel booking: An unknown error occurred.')
+      }
+    }
+
+    closeCancelModal()
+  }
+
+  const closeCancelModal = () => {
+    setCancelModalOpen(false)
+    setSessionToCancel(null)
   }
 
   const closeModal = () => {
@@ -209,6 +411,14 @@ const Schedule = () => {
         isUnbooking={unbooking}
       />
 
+      <CancelModal
+        isOpen={cancelModalOpen}
+        onClose={closeCancelModal}
+        onConfirm={handleCancelConfirm}
+        sessionTime={sessionToCancel?.key || ''}
+        isRecurring={sessionToCancel?.isRecurring || false}
+      />
+
       {/* User's upcoming sessions list: */}
       {user && (
         <div style={{ marginTop: '3rem', padding: '1rem', borderTop: '1px solid #ccc' }}>
@@ -216,20 +426,41 @@ const Schedule = () => {
           {Object.entries(bookedSlots)
             .filter(([_, booking]) => booking.user_id === user.id)
             .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime())
-            .map(([key]) => (
-              <div
-                key={key}
-                style={{
-                  background: '#f9f9f9',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '6px',
-                  marginBottom: '0.5rem',
-                  fontSize: '0.9rem',
-                }}
-              >
-                {key}
-              </div>
-            ))}
+            .map(([key]) => {
+              const isRecurring = bookedSlots[key]?.recurring_booking === true
+
+              return (
+                <div
+                  key={key}
+                  style={{
+                    background: '#f9f9f9',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '6px',
+                    marginBottom: '0.5rem',
+                    fontSize: '0.9rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}
+                >
+                  <span>{key}{isRecurring ? ' (Recurring)' : ''}</span>
+                  <button
+                    onClick={() => handleCancelClick(key)}
+                    style={{
+                      backgroundColor: '#e74c3c',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '0.25rem 0.5rem',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )
+            })}
           {Object.values(bookedSlots).filter(b => b.user_id === user.id).length === 0 && (
             <p style={{ fontStyle: 'italic', color: '#888' }}>No sessions booked yet.</p>
           )}
