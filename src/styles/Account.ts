@@ -2,8 +2,10 @@ import styled from 'styled-components'
 
 export const AccountWrapper = styled.div`
   display: flex;
+  flex-direction: column;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+  gap: 4rem; 
   padding: 4rem 1rem;
   background-color: ${({ theme }) => theme.colours.surface};
   min-height: 80vh;

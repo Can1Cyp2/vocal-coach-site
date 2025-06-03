@@ -13,17 +13,35 @@ const Login: React.FC = () => {
     e.preventDefault()
     setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
     if (error) {
       setError(error.message)
-    } else {
-      navigate('/booking') // or homepage maybe? Will see later
+      return
     }
+
+    const user = data.user
+    if (user) {
+      // Attempt to insert user into public_users:
+      const { error: insertError } = await supabase.from('public_users').insert([
+        {
+          id: user.id,
+          email: user.email,
+        },
+      ])
+
+      // only log error if not a duplicate:
+      if (insertError && !insertError.message.includes('duplicate')) {
+        console.error('public_users insert failed:', insertError)
+      }
+    }
+
+    navigate('/booking')
   }
+
 
   return (
     <LoginPage

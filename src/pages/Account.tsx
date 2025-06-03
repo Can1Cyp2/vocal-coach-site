@@ -1,4 +1,3 @@
-// src/pages/Account.tsx
 import React, { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../util/supabaseClient'
@@ -12,9 +11,10 @@ import {
   ResetButton,
   SuccessMessage,
 } from '../styles/Account'
+import { Link } from 'react-router-dom'
 
 const Account = () => {
-  const { user } = useAuth()
+  const { user, isAdmin } = useAuth()
   const [status, setStatus] = useState<'idle' | 'sent' | 'error'>('idle')
 
   const handlePasswordReset = async () => {
@@ -56,6 +56,21 @@ const Account = () => {
           </SuccessMessage>
         )}
       </AccountBox>
+
+      { isAdmin && (
+        <AccountBox>
+          <AccountTitle>Admin Access</AccountTitle>
+          <AccountRow>
+            <AccountLabel>Privileges:</AccountLabel>
+            <AccountValue>
+              <strong>✔ Admin</strong>
+            </AccountValue>
+          </AccountRow>
+          <Link to="/admin" style={{ textDecoration: 'none' }}>
+            <ResetButton>Go to Admin Dashboard</ResetButton>
+          </Link>
+        </AccountBox>
+      )}
     </AccountWrapper>
   )
 }
