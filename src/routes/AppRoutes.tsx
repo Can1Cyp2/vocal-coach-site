@@ -8,6 +8,7 @@ import Signup from '../pages/Signup'
 import Booking from '../pages/Booking'
 import Layout from '../components/Layout'
 import Account from '../pages/Account'
+import AdminDashboard from '../pages/AdminDashboard'
 
 const AppRoutes = () => {
   return (
@@ -19,6 +20,7 @@ const AppRoutes = () => {
         <Route path="/signup" element={<Signup />} />
         <Route path="/booking" element={<Booking />} />
         <Route path="/account" element={<Account />} />
+        <Route path="/admin" element={<AdminDashboard />} />
       </Route>
     </Routes>
   )
