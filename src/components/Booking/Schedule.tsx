@@ -49,12 +49,12 @@ const normalizeBookingTime = (bookingTime: string): string => {
       const date = new Date(bookingTime)
       return format(date, 'yyyy-MM-dd h:mm a')
     }
-    
+
     // Handle existing format (2025-07-14 10:00 AM)
     if (bookingTime.includes('AM') || bookingTime.includes('PM')) {
       return bookingTime
     }
-    
+
     // Fallback: try to parse as date
     const date = new Date(bookingTime)
     return format(date, 'yyyy-MM-dd h:mm a')
@@ -79,46 +79,49 @@ const Schedule = () => {
     // Add check to prevent duplicate fetches
     if (!user) return
 
-    const fetchBookings = async () => {
-      console.log('Fetching bookings for user:', user.id)
-      
+    const fetchAvailableSessions = async () => {
       const { data, error } = await supabase
-        .from('bookings')
-        .select('booking_time, user_id, status, recurring_booking')
+        .from('available_sessions')
+        .select('session_time, recurring_day, recurring_time, is_booked, created_by')
 
       if (error) {
-        console.error('Error fetching bookings:', error.message)
+        console.error('Error fetching available sessions:', error.message)
         return
       }
 
-      console.log('Raw booking data from DB:', data)
-
       const slots: { [key: string]: BookedSlotInfo } = {}
-      for (const booking of data || []) {
-        const normalizedKey = normalizeBookingTime(booking.booking_time)
-        
-        console.log('Processing booking:', {
-          original: booking.booking_time,
-          normalized: normalizedKey
-        })
-        
-        // Fix: Handle string 'true'/'false' values properly
-        const isRecurring = booking.recurring_booking === true || booking.recurring_booking === 'true'
-        
-        slots[normalizedKey] = {
-          user_id: booking.user_id,
-          status: booking.status,
-          recurring_booking: isRecurring,
-          original_booking_time: booking.booking_time, // Store original for deletion
+
+      const today = new Date()
+      const startDate = startOfWeek(startOfMonth(today), { weekStartsOn: 0 })
+      const endDate = endOfWeek(addMonths(startOfMonth(today), 1), { weekStartsOn: 0 })
+
+      for (let d = new Date(startDate); d <= endDate; d = addDays(d, 1)) {
+        const dateStr = format(d, 'yyyy-MM-dd')
+        const weekday = format(d, 'EEEE')
+
+        for (const session of data || []) {
+          const isRecurring = !!session.recurring_day && !!session.recurring_time
+          const normalizedKey = isRecurring
+            ? `${dateStr} ${session.recurring_time}`
+            : normalizeBookingTime(session.session_time)
+
+          if (isRecurring && session.recurring_day !== weekday) continue
+          if (!normalizedKey) continue
+
+          slots[normalizedKey] = {
+            user_id: '', // not booked yet
+            status: 'available',
+            recurring_booking: isRecurring,
+            original_booking_time: session.session_time || normalizedKey,
+          }
         }
       }
 
-      console.log('Final slots object:', slots)
       setBookedSlots(slots)
     }
 
-    fetchBookings()
-  }, [user?.id]) // Only depend on user.id, not the entire user object
+    fetchAvailableSessions()
+  }, [user?.id])
 
   const renderMonth = (month: Date) => {
     const days = []
@@ -138,19 +141,17 @@ const Schedule = () => {
             times.map(time => {
               const slotKey = `${dateKey} ${time}`;
               const booking = bookedSlots[slotKey];
-              const isBooked = !!booking;
+              const isAvailable = booking?.status === 'available'
               const isMine = booking?.user_id === user?.id;
 
               return (
                 <SlotButton
                   key={slotKey}
-                  $booked={isBooked}
+                  $booked={!isAvailable}
                   $own={isMine}
-                  onClick={() => handleSlotClick(currentDay, time, isBooked && isMine)}
-                  disabled={isBooked}
-                >
-                  {time}
-                </SlotButton>
+                  onClick={() => handleSlotClick(currentDay, time, !isAvailable && isMine)}
+                  disabled={!isAvailable && !isMine}
+                />
               );
             })}
         </DayCell>
@@ -204,9 +205,9 @@ const Schedule = () => {
       const newSlots = Object.fromEntries(
         bookingsToInsert.map(b => [
           b.booking_time,
-          { 
-            user_id: user.id, 
-            status: 'booked', 
+          {
+            user_id: user.id,
+            status: 'booked',
             recurring_booking: b.recurring_booking,
             original_booking_time: b.booking_time
           },
@@ -262,7 +263,7 @@ const Schedule = () => {
   const handleCancelClick = (key: string) => {
     const booking = bookedSlots[key]
     const isRecurring = booking?.recurring_booking === true
-    
+
     setSessionToCancel({ key, isRecurring })
     setCancelModalOpen(true)
   }
@@ -334,12 +335,12 @@ const Schedule = () => {
         alert(`Failed to cancel booking: ${error.message}`)
       } else if (!data || data.length === 0) {
         console.warn('No rows were deleted - this suggests a mismatch')
-        console.log('Available bookings in DB that match user_id:', 
+        console.log('Available bookings in DB that match user_id:',
           allUserBookings?.filter(b => b.user_id === user.id))
         alert('Booking not found or already cancelled')
       } else {
         console.log('Successfully deleted booking(s):', data)
-        
+
         const updated = { ...bookedSlots }
 
         if (cancelAll && sessionToCancel.isRecurring) {
