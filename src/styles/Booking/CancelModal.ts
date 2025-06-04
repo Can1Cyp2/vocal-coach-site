@@ -71,3 +71,24 @@ export const CheckboxLabel = styled.label`
   font-size: 0.9rem;
   margin-top: 1rem;
 `
+
+export const MessageInput = styled.textarea`
+  width: 100%;
+  height: 100px;
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  resize: vertical;
+  font-family: inherit;
+`
+
+export const CancelFormLabel = styled.label`
+  display: block;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #333;
+`

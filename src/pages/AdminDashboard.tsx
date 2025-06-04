@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react'
+import emailjs from '@emailjs/browser'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../util/supabaseClient'
 import { useAdminData } from '../hooks/useAdminData'
 import { useAdminBookings } from '../hooks/useAdminBookings'
+import { sendCancellationEmail } from '../util/sendCancellationEmail'
 import {
   AdminWrapper,
   AdminBox,
@@ -229,8 +231,19 @@ const AdminDashboard: React.FC = () => {
           <AdminCancelModal
             isOpen={modalOpen}
             onClose={() => setModalOpen(false)}
-            onConfirm={() => {
+            onConfirm={(message) => {
               cancelBooking(selectedBooking.id)
+              sendCancellationEmail(
+                selectedBooking.email,
+                selectedBooking.booking_time,
+                message
+              ).then(() => {
+                alert('Cancellation email sent.')
+              }).catch((err) => {
+                console.error('Email failed:', err)
+                alert('Booking was cancelled, but email failed to send.')
+              })
+
               setModalOpen(false)
             }}
             bookingTime={selectedBooking.booking_time}
