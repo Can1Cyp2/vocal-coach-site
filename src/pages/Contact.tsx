@@ -26,6 +26,12 @@ const Contact = () => {
 
     if (!form.current) return
 
+    console.log(
+      process.env.REACT_APP_EMAILJS_SERVICE_ID,
+      process.env.REACT_APP_EMAIL_JS_TEMPLATE_ID_CancelBooking,
+      process.env.REACT_APP_EMAILJS_PUBLIC_KEY
+    )
+
     emailjs
       .sendForm(
         'service_ky7e9lg',
