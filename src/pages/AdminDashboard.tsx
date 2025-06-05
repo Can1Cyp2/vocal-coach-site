@@ -64,21 +64,21 @@ const timeGroups = {
 
 const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-// Helper function to normalize datetime strings for comparison
+// Helper function to normalize datetime strings for comparison:
 const normalizeDateTime = (dateTimeStr: string): string => {
   try {
     let date: Date
     
-    // If it's in ISO format like "2025-06-10T19:00:00", convert to our standard format
+    // If it's in ISO format like: "2025-06-10T19:00:00", convert to our standard format
     if (dateTimeStr.includes('T')) {
       date = new Date(dateTimeStr)
     }
-    // If it's already in format like "2025-06-03 7:00 PM", parse it
+    // If it's already in format like: example "2025-06-03 7:00 PM", parse it
     else {
       date = parse(dateTimeStr, 'yyyy-MM-dd h:mm a', new Date())
     }
     
-    // Return in standard format: "2025-06-03 7:00 PM"
+    // Return in standard format: example "2025-06-03 7:00 PM":
     return format(date, 'yyyy-MM-dd h:mm a')
   } catch (error) {
     console.error('Error normalizing datetime:', dateTimeStr, error)
@@ -136,7 +136,7 @@ const AdminDashboard: React.FC = () => {
       
       const fetchAllSessions = async () => {
         try {
-          // First, get all available sessions
+          // get all available sessions:
           const { data: sessions, error: sessionError } = await supabase
             .from('available_sessions')
             .select('*')
@@ -146,7 +146,7 @@ const AdminDashboard: React.FC = () => {
             return
           }
 
-          // Get all bookings (just the basic info)
+          // Get all bookings:
           const { data: bookings, error: bookingsError } = await supabase
             .from('bookings')
             .select('id, booking_time, user_id, status, duration_minutes, created_at')
@@ -156,7 +156,7 @@ const AdminDashboard: React.FC = () => {
             return
           }
 
-          // Get all user emails
+          // Get all user emails:
           const { data: publicUsers, error: usersError } = await supabase
             .from('public_users')
             .select('id, email')
