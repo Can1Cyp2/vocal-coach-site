@@ -37,6 +37,7 @@ import {
   isSameMonth,
   isToday,
   addDays,
+  parse,
 } from 'date-fns'
 import AdminCancelModal from '../components/Booking/AdminCancelModal'
 import {
@@ -63,6 +64,28 @@ const timeGroups = {
 
 const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+// Helper function to normalize datetime strings for comparison
+const normalizeDateTime = (dateTimeStr: string): string => {
+  try {
+    let date: Date
+    
+    // If it's in ISO format like "2025-06-10T19:00:00", convert to our standard format
+    if (dateTimeStr.includes('T')) {
+      date = new Date(dateTimeStr)
+    }
+    // If it's already in format like "2025-06-03 7:00 PM", parse it
+    else {
+      date = parse(dateTimeStr, 'yyyy-MM-dd h:mm a', new Date())
+    }
+    
+    // Return in standard format: "2025-06-03 7:00 PM"
+    return format(date, 'yyyy-MM-dd h:mm a')
+  } catch (error) {
+    console.error('Error normalizing datetime:', dateTimeStr, error)
+    return dateTimeStr
+  }
+}
+
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -82,7 +105,6 @@ const AdminDashboard: React.FC = () => {
   const [selectedTimes, setSelectedTimes] = useState<string[]>([])
   const [makeRecurring, setMakeRecurring] = useState(false)
   const [allSessions, setAllSessions] = useState<any[]>([])
-
 
   useEffect(() => {
     const verifyAdmin = async () => {
@@ -111,22 +133,135 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (verified) {
       loadUsersAndAdmins()
+      
       const fetchAllSessions = async () => {
-        const { data, error } = await supabase
-          .from('available_sessions')
-          .select('session_time, recurring_day, recurring_time, is_booked, created_by')
-        if (error) {
-          console.error('Failed to load available sessions:', error)
-          return
-        }
+        try {
+          // First, get all available sessions
+          const { data: sessions, error: sessionError } = await supabase
+            .from('available_sessions')
+            .select('*')
 
-        setAllSessions(data || [])
+          if (sessionError) {
+            console.error('Failed to load available sessions:', sessionError)
+            return
+          }
+
+          // Get all bookings (just the basic info)
+          const { data: bookings, error: bookingsError } = await supabase
+            .from('bookings')
+            .select('id, booking_time, user_id, status, duration_minutes, created_at')
+
+          if (bookingsError) {
+            console.error('Failed to load bookings:', bookingsError)
+            return
+          }
+
+          // Get all user emails
+          const { data: publicUsers, error: usersError } = await supabase
+            .from('public_users')
+            .select('id, email')
+
+          if (usersError) {
+            console.error('Failed to load public users:', usersError)
+            return
+          }
+
+          console.log('Loaded bookings:', bookings) // Debug log
+          console.log('Loaded users:', publicUsers) // Debug log
+
+          // Create a map of user_id -> email for quick lookup
+          const userEmailMap = new Map()
+          publicUsers?.forEach(user => {
+            userEmailMap.set(user.id, user.email)
+          })
+
+          // Enrich sessions with booking information
+          const enriched = (sessions || []).map((session) => {
+            const normalizedSessionTime = normalizeDateTime(session.session_time)
+            
+            const matchingBooking = bookings?.find(booking => {
+              const normalizedBookingTime = normalizeDateTime(booking.booking_time)
+              return normalizedBookingTime === normalizedSessionTime
+            })
+            
+            console.log('Session:', session.session_time, '-> Normalized:', normalizedSessionTime)
+            if (matchingBooking) {
+              console.log('Found matching booking:', matchingBooking.booking_time, '-> Normalized:', normalizeDateTime(matchingBooking.booking_time))
+            }
+            
+            return {
+              ...session,
+              booked_user_id: matchingBooking?.user_id ?? null,
+              booked_email: matchingBooking?.user_id ? userEmailMap.get(matchingBooking.user_id) : null,
+              booking_id: matchingBooking?.id ?? null,
+              booking_status: matchingBooking?.status ?? null,
+            }
+          })
+
+          console.log('Enriched sessions:', enriched) // Debug log
+          setAllSessions(enriched)
+          
+        } catch (error) {
+          console.error('Error in fetchAllSessions:', error)
+        }
       }
 
       fetchAllSessions()
-
     }
-  }, [verified, loadUsersAndAdmins, loadBookings])
+  }, [verified, loadUsersAndAdmins])
+
+  // Refresh sessions when bookings change
+  useEffect(() => {
+    if (verified && bookings.length > 0) {
+      // Re-fetch sessions when bookings are updated
+      const refreshSessions = async () => {
+        const { data: sessions, error: sessionError } = await supabase
+          .from('available_sessions')
+          .select('*')
+
+        if (sessionError) return
+
+        const { data: bookings, error: bookingsError } = await supabase
+          .from('bookings')
+          .select('id, booking_time, user_id, status')
+
+        if (bookingsError) return
+
+        const { data: publicUsers, error: usersError } = await supabase
+          .from('public_users')
+          .select('id, email')
+
+        if (usersError) return
+
+        // Create a map of user_id -> email for quick lookup
+        const userEmailMap = new Map()
+        publicUsers?.forEach(user => {
+          userEmailMap.set(user.id, user.email)
+        })
+
+        const enriched = (sessions || []).map((session) => {
+          const normalizedSessionTime = normalizeDateTime(session.session_time)
+          
+          const matchingBooking = bookings?.find(booking => {
+            const normalizedBookingTime = normalizeDateTime(booking.booking_time)
+            return normalizedBookingTime === normalizedSessionTime
+          })
+          
+          return {
+            ...session,
+            booked_user_id: matchingBooking?.user_id ?? null,
+            booked_email: matchingBooking?.user_id ? userEmailMap.get(matchingBooking.user_id) : null,
+            booking_id: matchingBooking?.id ?? null,
+            booking_status: matchingBooking?.status ?? null,
+          }
+        })
+
+        setAllSessions(enriched)
+      }
+
+      refreshSessions()
+    }
+  }, [bookings, verified])
 
   const handleAddAdmin = async (userId: string) => {
     const confirmed = window.confirm('Are you sure you want to grant admin privileges?')
@@ -166,7 +301,6 @@ const AdminDashboard: React.FC = () => {
     while (day <= endDate) {
       const dateStr = format(day, 'yyyy-MM-dd')
       const isCurrentMonth = isSameMonth(day, monthStart)
-      const weekday = dayLabels[day.getDay()]
 
       // Get available one-time and recurring sessions for this day
       const availableSlots: any[] = []
@@ -184,7 +318,7 @@ const AdminDashboard: React.FC = () => {
             if (nextDateStr === dateStr) {
               availableSlots.push({
                 ...session,
-                session_time: nextDate,
+                session_time: format(nextDate, 'yyyy-MM-dd h:mm a'), // Use standard format
               })
               break
             }
@@ -193,7 +327,6 @@ const AdminDashboard: React.FC = () => {
           availableSlots.push(session)
         }
       }
-
 
       calendar.push(
         <DayCell
@@ -204,10 +337,8 @@ const AdminDashboard: React.FC = () => {
           <span>{format(day, 'd')}</span>
           {availableSlots.map((session, idx) => {
             const timeLabel = format(new Date(session.session_time), 'h:mm a')
-
-            const isBooked = session.is_booked || session.user_id
-            const isMine = session.user_id === user?.id
-            const fullKey = session.session_time || `${dateStr} ${session.recurring_time}`
+            const isBooked = !!session.booked_user_id
+            const isMine = session.booked_user_id === user?.id
 
             return (
               <SlotButton
@@ -217,12 +348,17 @@ const AdminDashboard: React.FC = () => {
                 disabled={!isBooked}
                 onClick={() => {
                   if (isBooked) {
-                    setSelectedBooking(session)
+                    setSelectedBooking({
+                      ...session,
+                      booking_time: session.session_time,
+                      email: session.booked_email,
+                      id: session.booking_id
+                    })
                     setModalOpen(true)
                   }
                 }}
               >
-                {isBooked ? `${timeLabel} – ${session.email}` : timeLabel}
+                {isBooked ? `${timeLabel} – ${session.booked_email}` : timeLabel}
               </SlotButton>
             )
           })}
@@ -234,7 +370,6 @@ const AdminDashboard: React.FC = () => {
 
     return calendar
   }
-
 
   if (!verified || !user) return null
 
@@ -353,7 +488,7 @@ const AdminDashboard: React.FC = () => {
                 checked={makeRecurring}
                 onChange={() => setMakeRecurring(!makeRecurring)}
               />
-              Make these times available weekly (adds it )
+              Make these times available weekly
             </label>
 
             <AdminActionButton
@@ -438,7 +573,6 @@ const AdminDashboard: React.FC = () => {
       </AdminBox>
     </AdminWrapper>
   )
-
 }
 
 export default AdminDashboard

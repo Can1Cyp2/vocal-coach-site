@@ -1,22 +1,16 @@
 import styled from 'styled-components'
 
 export const ScheduleSectionWrapper = styled.section`
-  background-color: ${({ theme }) => theme.colours.background};
-  padding: ${({ theme }) => theme.spacing.section} 0;
+  background-color: ${({ theme }) => theme.colours.surface};
+  padding: 4rem 1rem;
+  min-height: 80vh;
 `
 
 export const ScheduleContainer = styled.div`
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 ${({ theme }) => theme.spacing.container};
+  padding: 0 1rem;
   text-align: center;
-
-  h2 {
-    font-size: ${({ theme }) => theme.fontSizes.heading};
-    font-weight: ${({ theme }) => theme.fontWeights.bold};
-    color: ${({ theme }) => theme.colours.text};
-    margin-bottom: 2rem;
-  }
 `
 
 export const CalendarHeader = styled.div`
@@ -40,7 +34,6 @@ export const MonthNavButton = styled.button`
   padding: 0.5rem 1rem;
   font-size: ${({ theme }) => theme.fontSizes.small};
   cursor: pointer;
-  transition: background 0.2s ease;
 
   &:hover {
     background-color: ${({ theme }) => theme.colours.secondary};
@@ -60,10 +53,7 @@ export const DayLabel = styled.div`
   text-align: center;
 `
 
-export const DayCell = styled.div<{
-  $isToday?: boolean
-  $isCurrentMonth?: boolean
-}>`
+export const DayCell = styled.div<{ $isToday?: boolean; $isCurrentMonth?: boolean }>`
   background-color: ${({ $isToday, theme }) =>
     $isToday ? theme.colours.accent : theme.colours.surface};
   color: ${({ $isCurrentMonth, theme }) =>
@@ -71,7 +61,6 @@ export const DayCell = styled.div<{
   padding: 1rem;
   border-radius: 0.5rem;
   text-align: center;
-  cursor: pointer;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05);
   transition: background 0.2s ease;
 
@@ -93,10 +82,7 @@ export const DayCell = styled.div<{
   }
 `
 
-export const SlotButton = styled.button<{
-  $booked?: boolean
-  $own?: boolean
-}>`
+export const SlotButton = styled.button<{ $booked?: boolean; $own?: boolean }>`
   display: block;
   width: 100%;
   margin-top: 0.25rem;
@@ -107,17 +93,15 @@ export const SlotButton = styled.button<{
   background-color: ${({ $booked, $own, theme }) =>
     $booked
       ? $own
-        ? theme.colours.accent // current user's booking — highlight it
-        : theme.colours.subtext // other user's booking — greyed
-      : theme.colours.primary}; // unbooked
-
+        ? theme.colours.accent
+        : theme.colours.subtext
+      : theme.colours.primary};
   color: ${({ $booked, $own, theme }) =>
     $booked
       ? $own
         ? theme.colours.white
         : theme.colours.background
       : theme.colours.white};
-
   cursor: ${({ $booked }) => ($booked ? 'not-allowed' : 'pointer')};
   transition: background 0.2s ease;
 
