@@ -2,6 +2,8 @@
 
 A modern web app built with React and TypeScript for a vocal coach to showcase services, provide contact information, and allow students to securely book coaching sessions.
 
+The site can currently be found here: https://can1cyp2.github.io/vocal-coach-site/
+
 ## Features
 
 - 🔐 Secure login and signup system
