@@ -1,4 +1,4 @@
-import React, { JSX, useEffect, useState } from 'react'
+import React, { JSX, useCallback, useEffect, useState } from 'react'
 import emailjs from '@emailjs/browser'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -106,6 +106,103 @@ const AdminDashboard: React.FC = () => {
   const [makeRecurring, setMakeRecurring] = useState(false)
   const [allSessions, setAllSessions] = useState<any[]>([])
 
+  const fetchAllSessions = useCallback(async () => {
+    try {
+      // Get all available sessions
+      const { data: sessions, error: sessionError } = await supabase
+        .from('available_sessions')
+        .select('*')
+
+      if (sessionError) {
+        console.error('Failed to load available sessions:', sessionError)
+        return
+      }
+
+      // Get all bookings
+      const { data: bookings, error: bookingsError } = await supabase
+        .from('bookings')
+        .select('id, booking_time, user_id, status, duration_minutes, created_at')
+
+      if (bookingsError) {
+        console.error('Failed to load bookings:', bookingsError)
+        return
+      }
+
+      // Get all user emails
+      const { data: publicUsers, error: usersError } = await supabase
+        .from('public_users')
+        .select('id, email')
+
+      if (usersError) {
+        console.error('Failed to load public users:', usersError)
+        return
+      }
+
+      // Create a map of user_id -> email for quick lookup
+      const userEmailMap = new Map()
+      publicUsers?.forEach(user => {
+        userEmailMap.set(user.id, user.email)
+      })
+
+      // Generate all session instances (including recurring ones)
+      const allSessionInstances: any[] = []
+      const today = new Date()
+
+      sessions?.forEach(session => {
+        if (session.recurring_day && session.recurring_time) {
+          // Generate recurring instances for the next 12 weeks
+          for (let weekOffset = 0; weekOffset < 12; weekOffset++) {
+            const sessionDate = new Date(session.session_time)
+            const recurringDate = addDays(sessionDate, weekOffset * 7)
+
+            // Only include future or current dates
+            if (recurringDate >= today || format(recurringDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
+              const formattedTime = format(recurringDate, 'yyyy-MM-dd h:mm a')
+
+              allSessionInstances.push({
+                ...session,
+                session_time: formattedTime,
+                instance_date: format(recurringDate, 'yyyy-MM-dd'),
+                is_recurring_instance: true
+              })
+            }
+          }
+        } else {
+          // Non-recurring session
+          allSessionInstances.push({
+            ...session,
+            instance_date: format(new Date(session.session_time), 'yyyy-MM-dd'),
+            is_recurring_instance: false
+          })
+        }
+      })
+
+      // Now match each session instance with bookings
+      const enriched = allSessionInstances.map((sessionInstance) => {
+        const normalizedSessionTime = normalizeDateTime(sessionInstance.session_time)
+
+        const matchingBooking = bookings?.find(booking => {
+          const normalizedBookingTime = normalizeDateTime(booking.booking_time)
+          return normalizedBookingTime === normalizedSessionTime
+        })
+
+        return {
+          ...sessionInstance,
+          booked_user_id: matchingBooking?.user_id ?? null,
+          booked_email: matchingBooking?.user_id ? userEmailMap.get(matchingBooking.user_id) : null,
+          booking_id: matchingBooking?.id ?? null,
+          booking_status: matchingBooking?.status ?? null,
+          is_booked: !!matchingBooking
+        }
+      })
+
+      setAllSessions(enriched)
+
+    } catch (error) {
+      console.error('Error in fetchAllSessions:', error)
+    }
+  }, [])
+
   useEffect(() => {
     const verifyAdmin = async () => {
       if (!user) {
@@ -134,113 +231,7 @@ const AdminDashboard: React.FC = () => {
     if (verified) {
       loadUsersAndAdmins()
 
-      const fetchAllSessions = async () => {
-        try {
-          // Get all available sessions
-          const { data: sessions, error: sessionError } = await supabase
-            .from('available_sessions')
-            .select('*')
-
-          if (sessionError) {
-            console.error('Failed to load available sessions:', sessionError)
-            return
-          }
-
-          // Get all bookings
-          const { data: bookings, error: bookingsError } = await supabase
-            .from('bookings')
-            .select('id, booking_time, user_id, status, duration_minutes, created_at')
-
-          if (bookingsError) {
-            console.error('Failed to load bookings:', bookingsError)
-            return
-          }
-
-          // Get all user emails
-          const { data: publicUsers, error: usersError } = await supabase
-            .from('public_users')
-            .select('id, email')
-
-          if (usersError) {
-            console.error('Failed to load public users:', usersError)
-            return
-          }
-
-          console.log('Loaded bookings:', bookings)
-          console.log('Loaded users:', publicUsers)
-
-          // Create a map of user_id -> email for quick lookup
-          const userEmailMap = new Map()
-          publicUsers?.forEach(user => {
-            userEmailMap.set(user.id, user.email)
-          })
-
-          // Generate all session instances (including recurring ones)
-          const allSessionInstances: any[] = []
-          const today = new Date()
-
-          sessions?.forEach(session => {
-            if (session.recurring_day && session.recurring_time) {
-              // Generate recurring instances for the next 12 weeks
-              for (let weekOffset = 0; weekOffset < 12; weekOffset++) {
-                const sessionDate = new Date(session.session_time)
-                const recurringDate = addDays(sessionDate, weekOffset * 7)
-
-                // Only include future or current dates
-                if (recurringDate >= today || format(recurringDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
-                  const formattedTime = format(recurringDate, 'yyyy-MM-dd h:mm a')
-
-                  allSessionInstances.push({
-                    ...session,
-                    session_time: formattedTime,
-                    instance_date: format(recurringDate, 'yyyy-MM-dd'),
-                    is_recurring_instance: true
-                  })
-                }
-              }
-            } else {
-              // Non-recurring session
-              allSessionInstances.push({
-                ...session,
-                instance_date: format(new Date(session.session_time), 'yyyy-MM-dd'),
-                is_recurring_instance: false
-              })
-            }
-          })
-
-          // Now match each session instance with bookings
-          const enriched = allSessionInstances.map((sessionInstance) => {
-            const normalizedSessionTime = normalizeDateTime(sessionInstance.session_time)
-
-            const matchingBooking = bookings?.find(booking => {
-              const normalizedBookingTime = normalizeDateTime(booking.booking_time)
-              return normalizedBookingTime === normalizedSessionTime
-            })
-
-            console.log('Session:', sessionInstance.session_time, '-> Normalized:', normalizedSessionTime)
-            if (matchingBooking) {
-              console.log('Found matching booking:', matchingBooking.booking_time, '-> Normalized:', normalizeDateTime(matchingBooking.booking_time))
-            }
-
-            return {
-              ...sessionInstance,
-              booked_user_id: matchingBooking?.user_id ?? null,
-              booked_email: matchingBooking?.user_id ? userEmailMap.get(matchingBooking.user_id) : null,
-              booking_id: matchingBooking?.id ?? null,
-              booking_status: matchingBooking?.status ?? null,
-              is_booked: !!matchingBooking
-            }
-          })
-
-          console.log('Enriched sessions:', enriched)
-          setAllSessions(enriched)
-
-        } catch (error) {
-          console.error('Error in fetchAllSessions:', error)
-        }
-      }
-
-      fetchAllSessions()
+      fetchAllSessions() // Fetch all sessions on initial load
     }
   }, [verified, loadUsersAndAdmins])
 
@@ -564,20 +555,26 @@ const AdminDashboard: React.FC = () => {
           <AdminCancelModal
             isOpen={modalOpen}
             onClose={() => setModalOpen(false)}
-            onConfirm={(message) => {
-              cancelBooking(selectedBooking.id)
-              sendCancellationEmail(
-                selectedBooking.email,
-                selectedBooking.booking_time,
-                message
-              ).then(() => {
+            onConfirm={async (message) => {
+              // Cancel the booking:
+              await cancelBooking(selectedBooking.id)
+
+              // Send cancellation email:
+              try {
+                await sendCancellationEmail(
+                  selectedBooking.email,
+                  selectedBooking.booking_time,
+                  message
+                )
                 alert('Cancellation email sent.')
-              }).catch((err) => {
+              } catch (err) {
                 console.error('Email failed:', err)
                 alert('Booking was cancelled, but email failed to send.')
-              })
+              }
 
+              // Close modal and refresh sessions:
               setModalOpen(false)
+              await fetchAllSessions() // reload the calendar with updated data
             }}
             bookingTime={selectedBooking.booking_time}
             userEmail={selectedBooking.email}
