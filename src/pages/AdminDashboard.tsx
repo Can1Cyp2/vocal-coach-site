@@ -68,7 +68,7 @@ const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 const normalizeDateTime = (dateTimeStr: string): string => {
   try {
     let date: Date
-    
+
     // If it's in ISO format like: "2025-06-10T19:00:00", convert to our standard format
     if (dateTimeStr.includes('T')) {
       date = new Date(dateTimeStr)
@@ -77,7 +77,7 @@ const normalizeDateTime = (dateTimeStr: string): string => {
     else {
       date = parse(dateTimeStr, 'yyyy-MM-dd h:mm a', new Date())
     }
-    
+
     // Return in standard format: example "2025-06-03 7:00 PM":
     return format(date, 'yyyy-MM-dd h:mm a')
   } catch (error) {
@@ -133,10 +133,10 @@ const AdminDashboard: React.FC = () => {
   useEffect(() => {
     if (verified) {
       loadUsersAndAdmins()
-      
+
       const fetchAllSessions = async () => {
         try {
-          // get all available sessions:
+          // Get all available sessions
           const { data: sessions, error: sessionError } = await supabase
             .from('available_sessions')
             .select('*')
@@ -146,7 +146,7 @@ const AdminDashboard: React.FC = () => {
             return
           }
 
-          // Get all bookings:
+          // Get all bookings
           const { data: bookings, error: bookingsError } = await supabase
             .from('bookings')
             .select('id, booking_time, user_id, status, duration_minutes, created_at')
@@ -156,7 +156,7 @@ const AdminDashboard: React.FC = () => {
             return
           }
 
-          // Get all user emails:
+          // Get all user emails
           const { data: publicUsers, error: usersError } = await supabase
             .from('public_users')
             .select('id, email')
@@ -166,8 +166,8 @@ const AdminDashboard: React.FC = () => {
             return
           }
 
-          console.log('Loaded bookings:', bookings) // Debug log
-          console.log('Loaded users:', publicUsers) // Debug log
+          console.log('Loaded bookings:', bookings)
+          console.log('Loaded users:', publicUsers)
 
           // Create a map of user_id -> email for quick lookup
           const userEmailMap = new Map()
@@ -175,32 +175,66 @@ const AdminDashboard: React.FC = () => {
             userEmailMap.set(user.id, user.email)
           })
 
-          // Enrich sessions with booking information
-          const enriched = (sessions || []).map((session) => {
-            const normalizedSessionTime = normalizeDateTime(session.session_time)
-            
+          // Generate all session instances (including recurring ones)
+          const allSessionInstances: any[] = []
+          const today = new Date()
+
+          sessions?.forEach(session => {
+            if (session.recurring_day && session.recurring_time) {
+              // Generate recurring instances for the next 12 weeks
+              for (let weekOffset = 0; weekOffset < 12; weekOffset++) {
+                const sessionDate = new Date(session.session_time)
+                const recurringDate = addDays(sessionDate, weekOffset * 7)
+
+                // Only include future or current dates
+                if (recurringDate >= today || format(recurringDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
+                  const formattedTime = format(recurringDate, 'yyyy-MM-dd h:mm a')
+
+                  allSessionInstances.push({
+                    ...session,
+                    session_time: formattedTime,
+                    instance_date: format(recurringDate, 'yyyy-MM-dd'),
+                    is_recurring_instance: true
+                  })
+                }
+              }
+            } else {
+              // Non-recurring session
+              allSessionInstances.push({
+                ...session,
+                instance_date: format(new Date(session.session_time), 'yyyy-MM-dd'),
+                is_recurring_instance: false
+              })
+            }
+          })
+
+          // Now match each session instance with bookings
+          const enriched = allSessionInstances.map((sessionInstance) => {
+            const normalizedSessionTime = normalizeDateTime(sessionInstance.session_time)
+
             const matchingBooking = bookings?.find(booking => {
               const normalizedBookingTime = normalizeDateTime(booking.booking_time)
               return normalizedBookingTime === normalizedSessionTime
             })
-            
-            console.log('Session:', session.session_time, '-> Normalized:', normalizedSessionTime)
+
+            console.log('Session:', sessionInstance.session_time, '-> Normalized:', normalizedSessionTime)
             if (matchingBooking) {
               console.log('Found matching booking:', matchingBooking.booking_time, '-> Normalized:', normalizeDateTime(matchingBooking.booking_time))
             }
-            
+
             return {
-              ...session,
+              ...sessionInstance,
               booked_user_id: matchingBooking?.user_id ?? null,
               booked_email: matchingBooking?.user_id ? userEmailMap.get(matchingBooking.user_id) : null,
               booking_id: matchingBooking?.id ?? null,
               booking_status: matchingBooking?.status ?? null,
+              is_booked: !!matchingBooking
             }
           })
 
-          console.log('Enriched sessions:', enriched) // Debug log
+          console.log('Enriched sessions:', enriched)
           setAllSessions(enriched)
-          
+
         } catch (error) {
           console.error('Error in fetchAllSessions:', error)
         }
@@ -241,12 +275,12 @@ const AdminDashboard: React.FC = () => {
 
         const enriched = (sessions || []).map((session) => {
           const normalizedSessionTime = normalizeDateTime(session.session_time)
-          
+
           const matchingBooking = bookings?.find(booking => {
             const normalizedBookingTime = normalizeDateTime(booking.booking_time)
             return normalizedBookingTime === normalizedSessionTime
           })
-          
+
           return {
             ...session,
             booked_user_id: matchingBooking?.user_id ?? null,
@@ -302,31 +336,10 @@ const AdminDashboard: React.FC = () => {
       const dateStr = format(day, 'yyyy-MM-dd')
       const isCurrentMonth = isSameMonth(day, monthStart)
 
-      // Get available one-time and recurring sessions for this day
-      const availableSlots: any[] = []
-
-      for (const session of allSessions) {
-        const isRecurring = session.recurring_day && session.recurring_time
-
-        if (isRecurring) {
-          // Generate all future dates this session recurs on
-          for (let i = 0; i < 12; i++) {
-            const baseDate = new Date(session.session_time)
-            const nextDate = addDays(baseDate, i * 7) // weekly recurrence
-            const nextDateStr = format(nextDate, 'yyyy-MM-dd')
-
-            if (nextDateStr === dateStr) {
-              availableSlots.push({
-                ...session,
-                session_time: format(nextDate, 'yyyy-MM-dd h:mm a'), // Use standard format
-              })
-              break
-            }
-          }
-        } else if (session.session_time && format(new Date(session.session_time), 'yyyy-MM-dd') === dateStr) {
-          availableSlots.push(session)
-        }
-      }
+      // Get all session instances for this specific date
+      const availableSlots = allSessions.filter(session => {
+        return session.instance_date === dateStr
+      })
 
       calendar.push(
         <DayCell
@@ -337,12 +350,12 @@ const AdminDashboard: React.FC = () => {
           <span>{format(day, 'd')}</span>
           {availableSlots.map((session, idx) => {
             const timeLabel = format(new Date(session.session_time), 'h:mm a')
-            const isBooked = !!session.booked_user_id
+            const isBooked = session.is_booked
             const isMine = session.booked_user_id === user?.id
 
             return (
               <SlotButton
-                key={`${timeLabel}-${idx}`}
+                key={`${session.id}-${session.instance_date}-${idx}`}
                 $booked={isBooked}
                 $own={isMine}
                 disabled={!isBooked}
