@@ -6,9 +6,9 @@ import { supabase } from '../util/supabaseClient'
 import { useAdminData } from '../hooks/useAdminData'
 import { useAdminBookings } from '../hooks/useAdminBookings'
 import { sendCancellationEmail } from '../util/sendCancellationEmail'
-// Import the new shared utilities
 import { fetchAllSessionsWithBookings, sortTimeSlots } from '../util/sessionUtils'
 import LessonTimeManager from '../components/Booking/LessonTimeManager'
+import AdminBookingModal from '../components/Booking/AdminBookingModal'
 import {
   AdminWrapper,
   AdminBox,
@@ -62,6 +62,9 @@ const AdminDashboard: React.FC = () => {
   // Admin times management states:
   const [showAddTimes, setShowAddTimes] = useState(false)
   const [allSessions, setAllSessions] = useState<any[]>([])
+
+  const [adminBookingModalOpen, setAdminBookingModalOpen] = useState(false)
+  const [selectedSession, setSelectedSession] = useState<any | null>(null)
 
   // Use the shared utility function
   const fetchAllSessions = useCallback(async () => {
@@ -128,6 +131,130 @@ const AdminDashboard: React.FC = () => {
     loadUsersAndAdmins()
   }
 
+  const handleAdminBooking = async (userId: string, recurring: boolean) => {
+    if (!selectedSession) return
+
+    try {
+      console.log('Booking for user ID:', userId)
+      console.log('Selected session:', selectedSession)
+
+      // Format the session time consistently
+      const sessionTimeFormatted = format(new Date(selectedSession.session_time), 'yyyy-MM-dd h:mm a')
+
+      // First, book the initial session
+      const { data: bookingResult, error: bookingError } = await supabase
+        .rpc('admin_book_session', {
+          target_user_id: userId,
+          booking_time_param: sessionTimeFormatted,
+          duration_param: 60,
+          coach_id_param: null
+        })
+
+      if (bookingError) {
+        console.error('Error calling admin_book_session:', bookingError)
+        alert(`Failed to create booking: ${bookingError.message}`)
+        return
+      }
+
+      if (!bookingResult.success) {
+        console.error('Booking function returned error:', bookingResult.error)
+        alert(`Failed to create booking: ${bookingResult.error}`)
+        return
+      }
+
+      console.log('Initial booking created successfully:', bookingResult)
+
+      // Handle recurring bookings if requested
+      if (recurring) {
+        const baseDate = new Date(selectedSession.session_time)
+        const recurringResults = []
+        let successCount = 1 // Count the initial booking
+
+        for (let i = 1; i <= 12; i++) {
+          // Calculate the next week's date
+          const nextWeekDate = new Date(baseDate)
+          nextWeekDate.setDate(baseDate.getDate() + (i * 7))
+          const nextWeekDateStr = format(nextWeekDate, 'yyyy-MM-dd')
+          const nextWeekTimeStr = format(nextWeekDate, 'yyyy-MM-dd h:mm a')
+
+          // Find a matching available session for the next week
+          const nextWeekSession = allSessions.find(s =>
+            s.instance_date === nextWeekDateStr &&
+            format(new Date(s.session_time), 'h:mm a') === format(baseDate, 'h:mm a') &&
+            !s.is_booked
+          )
+
+          if (nextWeekSession) {
+            try {
+              const { data: recurringResult, error: recurringError } = await supabase
+                .rpc('admin_book_session', {
+                  target_user_id: userId,
+                  booking_time_param: nextWeekTimeStr,
+                  duration_param: 60,
+                  coach_id_param: null
+                })
+
+              if (!recurringError && recurringResult?.success) {
+                recurringResults.push({
+                  week: i + 1,
+                  date: nextWeekTimeStr,
+                  success: true
+                })
+                successCount++
+              } else {
+                console.warn(`Failed to book recurring session for week ${i + 1}:`, recurringError || recurringResult?.error)
+                recurringResults.push({
+                  week: i + 1,
+                  date: nextWeekTimeStr,
+                  success: false,
+                  error: recurringError?.message || recurringResult?.error
+                })
+              }
+            } catch (err) {
+              console.error(`Failed to book recurring session for week ${i + 1}:`, err)
+              recurringResults.push({
+                week: i + 1,
+                date: nextWeekTimeStr,
+                success: false,
+                error: 'Unexpected error'
+              })
+            }
+          } else {
+            console.warn(`No available session found for ${nextWeekDateStr} at ${format(baseDate, 'h:mm a')}`)
+            recurringResults.push({
+              week: i + 1,
+              date: nextWeekTimeStr,
+              success: false,
+              error: 'No available session slot'
+            })
+          }
+        }
+
+        const failedCount = recurringResults.filter(r => !r.success).length
+        console.log(`Recurring booking results: ${successCount} successful, ${failedCount} failed`)
+
+        if (successCount > 1) {
+          alert(`Successfully booked ${successCount} sessions${failedCount > 0 ? ` (${failedCount} slots were unavailable or failed)` : ''}`)
+        } else {
+          alert('Initial session booked, but no recurring sessions could be created (no available slots)')
+        }
+      } else {
+        alert('Session booked successfully!')
+      }
+
+      // Close modal and refresh data
+      setAdminBookingModalOpen(false)
+      setSelectedSession(null)
+      await fetchAllSessions()
+      loadBookings()
+
+    } catch (error) {
+      console.error('Error in handleAdminBooking:', error)
+      alert('Failed to book session')
+    }
+  }
+
+
   const handleLessonTimesSaved = async () => {
     // Refresh the calendar with new sessions
     await fetchAllSessions()
@@ -177,7 +304,6 @@ const AdminDashboard: React.FC = () => {
                 key={`${session.id}-${session.instance_date}-${idx}`}
                 $booked={isBooked}
                 $own={isMine}
-                disabled={!isBooked}
                 onClick={() => {
                   if (isBooked) {
                     setSelectedBooking({
@@ -187,6 +313,9 @@ const AdminDashboard: React.FC = () => {
                       id: session.booking_id
                     })
                     setModalOpen(true)
+                  } else {
+                    setSelectedSession(session)
+                    setAdminBookingModalOpen(true)
                   }
                 }}
               >
@@ -314,6 +443,18 @@ const AdminDashboard: React.FC = () => {
           />
         )}
       </AdminBox>
+      {selectedSession && (
+        <AdminBookingModal
+          isOpen={adminBookingModalOpen}
+          onClose={() => {
+            setAdminBookingModalOpen(false)
+            setSelectedSession(null)
+          }}
+          onConfirm={handleAdminBooking}
+          sessionTime={format(new Date(selectedSession.session_time), 'yyyy-MM-dd h:mm a')}
+          users={users}
+        />
+      )}
     </AdminWrapper>
   )
 }

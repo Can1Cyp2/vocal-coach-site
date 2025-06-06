@@ -1,3 +1,4 @@
+// src/components/Booking/BookingModal.tsx
 import React, { useState } from 'react'
 import {
   ModalOverlay,
