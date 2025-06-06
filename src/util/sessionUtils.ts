@@ -42,7 +42,7 @@ export const normalizeDateTime = (dateTimeStr: string): string => {
     if (dateTimeStr.includes('T')) {
       date = new Date(dateTimeStr)
     } else {
-      // Try parsing as the exact format used in bookings
+      // parsing as the exact format used in bookings
       date = parse(dateTimeStr, 'yyyy-MM-dd h:mm a', new Date())
       if (isNaN(date.getTime())) {
         // Fallback to native Date parsing
@@ -50,7 +50,6 @@ export const normalizeDateTime = (dateTimeStr: string): string => {
       }
     }
 
-    // Return in the SAME format that bookings use
     return format(date, 'yyyy-MM-dd h:mm a')
   } catch (error) {
     console.error('Error normalizing datetime:', dateTimeStr, error)
@@ -77,14 +76,13 @@ export const generateAllSessionInstances = (
 
   sessions.forEach(session => {
     if (session.recurring_day && session.recurring_time) {
-      // For recurring sessions
+      // For recurring sessions:
       const baseDate = new Date(session.session_time)
       
       for (let weekOffset = 0; weekOffset < weeksAhead; weekOffset++) {
         const recurringDate = addDays(baseDate, weekOffset * 7)
 
         if (recurringDate >= today || format(recurringDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
-          // Use the SAME format as bookings
           const formattedTime = `${format(recurringDate, 'yyyy-MM-dd')} ${session.recurring_time}`
 
           allSessionInstances.push({
@@ -96,7 +94,7 @@ export const generateAllSessionInstances = (
         }
       }
     } else {
-      // One-time session
+      // One-time session:
       const sessionDate = new Date(session.session_time)
       if (sessionDate >= today || format(sessionDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd')) {
         allSessionInstances.push({
@@ -193,7 +191,7 @@ export const getSessionsForSchedule = async (
   const availableSlotKeys: string[] = []
 
   allSessions.forEach(session => {
-    const key = session.session_time // This is now guaranteed to be in 'yyyy-MM-dd h:mm a' format
+    const key = session.session_time // 'yyyy-MM-dd h:mm a' format
     const isBooked = session.is_booked
     const bookedByUser = session.booked_user_id === userId
 
