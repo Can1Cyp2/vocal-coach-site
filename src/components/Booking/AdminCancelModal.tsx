@@ -11,12 +11,13 @@ import {
   CancelButton,
   MessageInput,
   CancelFormLabel,
+  Spinner,
 } from '../../styles/Booking/CancelModal'
 
 interface AdminCancelModalProps {
   isOpen: boolean
   onClose: () => void
-  onConfirm: (message: string) => void
+  onConfirm: (message: string) => Promise<void> // must return a Promise
   bookingTime: string
   userEmail: string
 }
@@ -29,13 +30,25 @@ const AdminCancelModal: React.FC<AdminCancelModalProps> = ({
   userEmail,
 }) => {
   const [message, setMessage] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleConfirm = () => {
-    if (message.trim()) {
-      onConfirm(message.trim())
-      setMessage('')
-    } else {
+
+
+
+  const handleConfirm = async () => {
+    if (!message.trim()) {
       alert('Please provide a cancellation reason.')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      await onConfirm(message.trim())
+      setMessage('')
+    } catch (err) {
+      alert('Something went wrong while sending the cancellation.')
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -69,7 +82,15 @@ const AdminCancelModal: React.FC<AdminCancelModalProps> = ({
             <CancelButton $secondary onClick={handleClose}>
               Close
             </CancelButton>
-            <CancelButton onClick={handleConfirm}>Send & Cancel</CancelButton>
+            <CancelButton onClick={handleConfirm} disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Spinner /> Sending...
+                </>
+              ) : (
+                'Send & Cancel'
+              )}
+            </CancelButton>
           </ModalFooter>
         </ModalContent>
       </ModalWrapper>

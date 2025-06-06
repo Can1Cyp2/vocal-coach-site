@@ -9,6 +9,7 @@ import { sendCancellationEmail } from '../util/sendCancellationEmail'
 import { fetchAllSessionsWithBookings, sortTimeSlots } from '../util/sessionUtils'
 import LessonTimeManager from '../components/Booking/LessonTimeManager'
 import AdminBookingModal from '../components/Booking/AdminBookingModal'
+import UserLessonListModal from '../components/Booking/UserLessonListModal'
 import {
   AdminWrapper,
   AdminBox,
@@ -27,6 +28,7 @@ import {
   DayLabel,
   DayCell,
   SlotButton,
+  AdminButtonGroup,
 } from '../styles/AdminDashboard'
 import {
   addMonths,
@@ -65,6 +67,9 @@ const AdminDashboard: React.FC = () => {
 
   const [adminBookingModalOpen, setAdminBookingModalOpen] = useState(false)
   const [selectedSession, setSelectedSession] = useState<any | null>(null)
+
+  const [userBookingsModalOpen, setUserBookingsModalOpen] = useState(false)
+  const [userBookings, setUserBookings] = useState<any[]>([])
 
   // Use the shared utility function
   const fetchAllSessions = useCallback(async () => {
@@ -129,6 +134,21 @@ const AdminDashboard: React.FC = () => {
 
     await supabase.from('admins').delete().eq('user_id', userId)
     loadUsersAndAdmins()
+  }
+
+  const openUserBookings = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', userId)
+
+    if (error) {
+      console.error('Failed to load bookings for user', error)
+      return
+    }
+
+    setUserBookings(data || [])
+    setUserBookingsModalOpen(true)
   }
 
   const handleAdminBooking = async (userId: string, recurring: boolean) => {
@@ -371,20 +391,23 @@ const AdminDashboard: React.FC = () => {
         {selectedUser && (
           <SelectedUserBox>
             <p><strong>{selectedUser.email}</strong></p>
-            {adminIds.has(selectedUser.id) ? (
-              <AdminActionButton
-                disabled={selectedUser.id === user.id}
-                onClick={() => handleRemoveAdmin(selectedUser.id)}
-              >
-                Remove Admin
+            <AdminButtonGroup>
+              <AdminActionButton onClick={() => openUserBookings(selectedUser.id)}>
+                View Lessons
               </AdminActionButton>
-            ) : (
-              <AdminActionButton
-                onClick={() => handleAddAdmin(selectedUser.id)}
-              >
-                Make Admin
-              </AdminActionButton>
-            )}
+              {adminIds.has(selectedUser.id) ? (
+                <AdminActionButton
+                  disabled={selectedUser.id === user.id}
+                  onClick={() => handleRemoveAdmin(selectedUser.id)}
+                >
+                  Remove Admin
+                </AdminActionButton>
+              ) : (
+                <AdminActionButton onClick={() => handleAddAdmin(selectedUser.id)}>
+                  Make Admin
+                </AdminActionButton>
+              )}
+            </AdminButtonGroup>
           </SelectedUserBox>
         )}
 
@@ -455,7 +478,21 @@ const AdminDashboard: React.FC = () => {
           users={users}
         />
       )}
+      <UserLessonListModal
+        isOpen={userBookingsModalOpen}
+        onClose={() => setUserBookingsModalOpen(false)}
+        bookings={userBookings}
+        selectedUser={selectedUser}
+        onCancel={async (bookingId, email, bookingTime, message) => {
+          await cancelBooking(bookingId)
+          await sendCancellationEmail(email, bookingTime, message)
+          fetchAllSessions()
+          loadBookings()
+          setUserBookings(prev => prev.filter(b => b.id !== bookingId))
+        }}
+      />
     </AdminWrapper>
+
   )
 }
 

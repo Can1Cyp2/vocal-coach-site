@@ -1,5 +1,5 @@
 // src/styles/Booking/CancelModal.ts
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 
 export const ModalOverlay = styled.div`
   position: fixed;
@@ -91,4 +91,21 @@ export const CancelFormLabel = styled.label`
   font-weight: 600;
   font-size: 0.95rem;
   color: #333;
+`
+
+export const spin = keyframes`
+  to {
+    transform: rotate(360deg);
+  }
+`
+
+export const Spinner = styled.span`
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  border: 2px solid white;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: ${spin} 0.6s linear infinite;
 `
