@@ -46,6 +46,10 @@ export const ModalHeader = styled.h3`
 `
 
 export const ModalBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   text-align: center;
 `
 
@@ -65,6 +69,7 @@ export const RecurringLabel = styled.label`
   color: ${({ theme }) => theme.colours.text};
   user-select: none;
   cursor: pointer;
+  border: 1px solid red;
 `
 
 export const RecurringToggle = styled.input`
