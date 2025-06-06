@@ -94,10 +94,11 @@ export const SelectedUserBox = styled.div`
 export const AdminActionButton = styled.button`
   margin-top: 1rem;
   padding: 0.75rem 1.5rem;
+  gap: 1.5rem;
   background-color: ${({ theme }) => theme.colours.primary};
   color: white;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: 1.5rem;
   cursor: pointer;
   font-weight: 600;
   font-size: 1rem;
@@ -111,6 +112,15 @@ export const AdminActionButton = styled.button`
     cursor: not-allowed;
   }
 `
+
+export const AdminButtonGroup = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+`
+
 
 // Calendar Styles Below
 export const CalendarSection = styled.section`
