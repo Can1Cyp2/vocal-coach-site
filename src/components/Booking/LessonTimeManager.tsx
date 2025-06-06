@@ -7,6 +7,11 @@ import {
     TimeGroupTitle,
     TimeGrid,
     TimeButton,
+    DateSectionWrapper,
+    MonthGroup,
+    MonthLabel,
+    DateGrid,
+    DateLabel,
 } from '../../styles/AdminLessonTimes'
 import { AdminActionButton } from '../../styles/AdminDashboard'
 
@@ -67,16 +72,18 @@ const LessonTimeManager: React.FC<LessonTimeManagerProps> = ({ userId, onSave, o
     }
 
     const generateUpcomingDates = () => {
-        const dates = []
+        const grouped: Record<string, { value: string; label: string }[]> = {}
         const today = new Date()
         for (let i = 0; i < 90; i++) {
             const date = addDays(today, i)
-            dates.push({
+            const monthKey = format(date, 'MMMM yyyy')
+            if (!grouped[monthKey]) grouped[monthKey] = []
+            grouped[monthKey].push({
                 value: format(date, 'yyyy-MM-dd'),
-                label: format(date, 'MMM dd, yyyy (EEE)')
+                label: format(date, 'MMM dd, yyyy (EEE)'),
             })
         }
-        return dates
+        return grouped
     }
 
     const handleSaveLessonTimes = async () => {
@@ -206,76 +213,28 @@ const LessonTimeManager: React.FC<LessonTimeManagerProps> = ({ userId, onSave, o
             </div>
 
             {/* Day Selection (for weekly scheduling) */}
-            {scheduleType === 'days' && (
-                <>
-                    <h4>Select Days of the Week</h4>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
-                        {daysOfWeek.map((day) => (
-                            <button
-                                key={day}
-                                onClick={() => handleDayToggle(day)}
-                                style={{
-                                    padding: '0.4rem 0.6rem',
-                                    borderRadius: '4px',
-                                    border: selectedDays.includes(day) ? '2px solid #28a745' : '1px solid #ccc',
-                                    backgroundColor: selectedDays.includes(day) ? '#e7f7ee' : '#fff',
-                                    cursor: 'pointer',
-                                    fontWeight: selectedDays.includes(day) ? 'bold' : 'normal',
-                                }}
-                            >
-                                {day}
-                            </button>
-                        ))}
-                    </div>
-
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <input
-                            type="checkbox"
-                            checked={makeRecurring}
-                            onChange={() => setMakeRecurring(!makeRecurring)}
-                        />
-                        Make these times available weekly
-                    </label>
-                </>
-            )}
-
-            {/* Date Selection (for specific dates) */}
             {scheduleType === 'dates' && (
                 <>
                     <h4>Select Specific Dates</h4>
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                        gap: '0.5rem',
-                        marginBottom: '1rem',
-                        maxHeight: '200px',
-                        overflowY: 'auto',
-                        border: '1px solid #ddd',
-                        padding: '0.5rem',
-                        borderRadius: '4px'
-                    }}>
-                        {generateUpcomingDates().map(({ value, label }) => (
-                            <label
-                                key={value}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem',
-                                    padding: '0.25rem',
-                                    cursor: 'pointer',
-                                    backgroundColor: selectedDates.includes(value) ? '#e7f7ee' : 'transparent',
-                                    borderRadius: '4px'
-                                }}
-                            >
-                                <input
-                                    type="checkbox"
-                                    checked={selectedDates.includes(value)}
-                                    onChange={() => handleDateToggle(value)}
-                                />
-                                <span style={{ fontSize: '0.9rem' }}>{label}</span>
-                            </label>
+                    <DateSectionWrapper>
+                        {Object.entries(generateUpcomingDates()).map(([month, dates]) => (
+                            <MonthGroup key={month}>
+                                <MonthLabel>{month}</MonthLabel>
+                                <DateGrid>
+                                    {dates.map(({ value, label }) => (
+                                        <DateLabel key={value} $selected={selectedDates.includes(value)}>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedDates.includes(value)}
+                                                onChange={() => handleDateToggle(value)}
+                                            />
+                                            {label}
+                                        </DateLabel>
+                                    ))}
+                                </DateGrid>
+                            </MonthGroup>
                         ))}
-                    </div>
+                    </DateSectionWrapper>
                 </>
             )}
 
