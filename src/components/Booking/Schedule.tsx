@@ -30,6 +30,9 @@ import {
   SlotButton,
 } from '../../styles/Booking/Schedule'
 
+// Import the fixed session utils
+import { getSessionsForSchedule, normalizeDateTime } from '../../util/sessionUtils'
+
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 interface BookedSlotInfo {
@@ -37,16 +40,6 @@ interface BookedSlotInfo {
   status: string
   recurring_booking?: boolean
   original_booking_time?: string
-}
-
-const normalizeBookingTime = (bookingTime: string): string => {
-  try {
-    const date = new Date(bookingTime)
-    return format(date, 'yyyy-MM-dd h:mm a')
-  } catch (error) {
-    console.error('Error normalizing booking time:', bookingTime, error)
-    return bookingTime
-  }
 }
 
 const Schedule = () => {
@@ -61,94 +54,21 @@ const Schedule = () => {
   const [sessionToCancel, setSessionToCancel] = useState<{ key: string; isRecurring: boolean } | null>(null)
   const { user } = useAuth()
 
-  useEffect(() => {
+  // Function to refresh sessions data
+  const refreshSessions = async () => {
     if (!user) return
-
-    const fetchAvailableSessions = async () => {
-      const { data, error } = await supabase
-        .from('available_sessions')
-        .select('session_time, recurring_day, recurring_time, is_booked')
-
-      const { data: bookingsData, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('booking_time, user_id')
-
-      if (bookingsError) {
-        console.error('Error fetching bookings:', bookingsError.message)
-        return
-      }
-
-      const bookedKeys = new Set<string>()
-      const userBookingMap: Record<string, string> = {}
-
-      for (const booking of bookingsData || []) {
-        const key = normalizeBookingTime(booking.booking_time)
-        bookedKeys.add(key)
-        userBookingMap[key] = booking.user_id
-      }
-
-
-      if (error) {
-        console.error('Error fetching available sessions:', error.message)
-        return
-      }
-
-      const slots: { [key: string]: BookedSlotInfo } = {}
-      const keys: string[] = []
-
-      const start = startOfWeek(startOfMonth(today))
-      const end = endOfWeek(endOfMonth(addMonths(today, 1)))
-
-      for (const session of data || []) {
-        const isRecurring = !!session.recurring_day && !!session.recurring_time
-
-        if (isRecurring) {
-          // For recurring sessions: generate once per applicable day
-          const baseDate = new Date(session.session_time)
-          const start = startOfWeek(startOfMonth(today))
-          const end = endOfWeek(endOfMonth(addMonths(today, 1)))
-
-          for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
-            const weekday = format(d, 'EEEE')
-            if (weekday !== session.recurring_day) continue
-
-            const key = `${format(d, 'yyyy-MM-dd')} ${session.recurring_time}`
-
-            const isBooked = bookedKeys.has(key)
-            const bookedByUser = userBookingMap[key] === user.id
-
-            slots[key] = {
-              user_id: bookedByUser ? user.id : '',
-              status: isBooked ? 'booked' : 'available',
-              recurring_booking: isRecurring,
-              original_booking_time: session.session_time,
-            }
-
-            keys.push(key)
-          }
-        } else {
-          // One-time session
-          const key = normalizeBookingTime(session.session_time)
-          const isBooked = bookedKeys.has(key)
-          const bookedByUser = userBookingMap[key] === user.id
-
-          slots[key] = {
-            user_id: bookedByUser ? user.id : '',
-            status: isBooked ? 'booked' : 'available',
-            recurring_booking: isRecurring,
-            original_booking_time: session.session_time,
-          }
-
-          keys.push(key)
-        }
-      }
-
-
+    
+    try {
+      const { bookedSlots: slots, availableSlotKeys: keys } = await getSessionsForSchedule(user.id, 12)
       setBookedSlots(slots)
       setAvailableSlotKeys(keys)
+    } catch (error) {
+      console.error('Error refreshing sessions:', error)
     }
+  }
 
-    fetchAvailableSessions()
+  useEffect(() => {
+    refreshSessions()
   }, [user?.id])
 
   const renderMonth = (month: Date) => {
@@ -162,8 +82,20 @@ const Schedule = () => {
       const dateKey = format(currentDay, 'yyyy-MM-dd')
       const isCurrent = isSameMonth(currentDay, month)
 
-      // Find all slots for this specific day
-      const matchingSlots = availableSlotKeys.filter(key => key.startsWith(dateKey))
+      // Find all slots for this specific day and sort by time
+      const matchingSlots = availableSlotKeys
+        .filter(key => key.startsWith(dateKey))
+        .sort((a, b) => {
+          // Extract time from each slot key and compare
+          const timeA = a.split(' ').slice(1).join(' ') // Get "h:mm a" part
+          const timeB = b.split(' ').slice(1).join(' ') // Get "h:mm a" part
+          
+          // Parse times to compare
+          const dateA = parse(`${dateKey} ${timeA}`, 'yyyy-MM-dd h:mm a', new Date())
+          const dateB = parse(`${dateKey} ${timeB}`, 'yyyy-MM-dd h:mm a', new Date())
+          
+          return dateA.getTime() - dateB.getTime()
+        })
 
       days.push(
         <DayCell key={dateKey} $isToday={isToday(currentDay)} $isCurrentMonth={isCurrent}>
@@ -172,7 +104,9 @@ const Schedule = () => {
             const booking = bookedSlots[slotKey]
             if (!booking) return null
 
-            const time = slotKey.split(' ')[1] + ' ' + slotKey.split(' ')[2]
+            // Extract time from slot key more safely
+            const timeParts = slotKey.split(' ')
+            const time = timeParts.length >= 3 ? `${timeParts[1]} ${timeParts[2]}` : format(new Date(slotKey), 'h:mm a')
             const isAvailable = booking.status === 'available'
             const isMine = booking.user_id === user?.id
 
@@ -209,7 +143,6 @@ const Schedule = () => {
     if (!selectedSlot || !user) return
 
     const baseDate = parse(selectedSlot.key, 'yyyy-MM-dd h:mm a', new Date())
-
     const bookingsToInsert = []
 
     for (let i = 0; i < (recurring ? 12 : 1); i++) {
@@ -235,11 +168,12 @@ const Schedule = () => {
       })
     }
 
-
     const { error } = await supabase.from('bookings').insert(bookingsToInsert)
     if (error) {
       console.error('Error booking session(s):', error.message)
+      alert(`Failed to book session: ${error.message}`)
     } else {
+      // Update local state immediately AND refresh from server
       const newSlots = Object.fromEntries(
         bookingsToInsert.map(b => [
           b.booking_time,
@@ -252,6 +186,9 @@ const Schedule = () => {
         ])
       )
       setBookedSlots(prev => ({ ...prev, ...newSlots }))
+      
+      // Also refresh from server to ensure consistency
+      await refreshSessions()
     }
 
     closeModal()
@@ -263,10 +200,13 @@ const Schedule = () => {
     const booking = bookedSlots[selectedSlot.key]
     const originalBookingTime = booking?.original_booking_time || selectedSlot.key
 
+    // Use normalizeDateTime to ensure consistent format matching
+    const normalizedBookingTime = normalizeDateTime(originalBookingTime)
+
     const { data, error } = await supabase
       .from('bookings')
       .delete()
-      .match({ user_id: user.id, booking_time: originalBookingTime })
+      .match({ user_id: user.id, booking_time: normalizedBookingTime })
       .select()
 
     if (error) {
@@ -275,9 +215,17 @@ const Schedule = () => {
     } else if (!data || data.length === 0) {
       alert('Booking not found or already cancelled')
     } else {
+      // Update local state immediately AND refresh from server
       const updated = { ...bookedSlots }
-      delete updated[selectedSlot.key]
+      updated[selectedSlot.key] = {
+        ...updated[selectedSlot.key],
+        status: 'available',
+        user_id: '',
+      }
       setBookedSlots(updated)
+      
+      // Also refresh from server to ensure consistency
+      await refreshSessions()
     }
 
     closeModal()
