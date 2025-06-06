@@ -237,6 +237,39 @@ const LessonTimeManager: React.FC<LessonTimeManagerProps> = ({ userId, onSave, o
                     </DateSectionWrapper>
                 </>
             )}
+            {scheduleType === 'days' && (
+                <>
+                    <h4>Select Days of the Week</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
+                        {daysOfWeek.map((day) => (
+                            <button
+                                key={day}
+                                onClick={() => handleDayToggle(day)}
+                                style={{
+                                    padding: '0.4rem 0.6rem',
+                                    borderRadius: '4px',
+                                    border: selectedDays.includes(day) ? '2px solid #28a745' : '1px solid #ccc',
+                                    backgroundColor: selectedDays.includes(day) ? '#e7f7ee' : '#fff',
+                                    cursor: 'pointer',
+                                    fontWeight: selectedDays.includes(day) ? 'bold' : 'normal',
+                                }}
+                            >
+                                {day}
+                            </button>
+                        ))}
+                    </div>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <input
+                            type="checkbox"
+                            checked={makeRecurring}
+                            onChange={() => setMakeRecurring(!makeRecurring)}
+                        />
+                        Make these times available weekly
+                    </label>
+                </>
+            )}
+
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
