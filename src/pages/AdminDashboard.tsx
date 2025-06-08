@@ -257,7 +257,7 @@ const AdminDashboard: React.FC = () => {
         alert('Session booked successfully!')
       }
 
-      // Close modal and refresh data
+      // Close modal and refresh data:
       setAdminBookingModalOpen(false)
       setSelectedSession(null)
       await fetchAllSessions()
