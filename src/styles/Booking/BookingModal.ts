@@ -69,7 +69,6 @@ export const RecurringLabel = styled.label`
   color: ${({ theme }) => theme.colours.text};
   user-select: none;
   cursor: pointer;
-  border: 1px solid red;
 `
 
 export const RecurringToggle = styled.input`

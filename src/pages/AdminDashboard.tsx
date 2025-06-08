@@ -185,78 +185,73 @@ const AdminDashboard: React.FC = () => {
       console.log('Initial booking created successfully:', bookingResult)
 
       // Handle recurring bookings if requested
+      // Handle recurring bookings if requested
       if (recurring) {
         const baseDate = new Date(selectedSession.session_time)
-        const recurringResults = []
+        const baseTimeStr = format(baseDate, 'h:mm a') // Get the time part (e.g., "2:00 PM")
+        const baseDayOfWeek = baseDate.getDay() // 0 = Sunday, 1 = Monday, etc.
+
         let successCount = 1 // Count the initial booking
 
-        for (let i = 1; i <= 12; i++) {
-          // Calculate the next week's date
-          const nextWeekDate = new Date(baseDate)
-          nextWeekDate.setDate(baseDate.getDate() + (i * 7))
-          const nextWeekDateStr = format(nextWeekDate, 'yyyy-MM-dd')
-          const nextWeekTimeStr = format(nextWeekDate, 'yyyy-MM-dd h:mm a')
+        // Find all future available sessions that match:
+        // 1. Same day of the week
+        // 2. Same time
+        // 3. Not already booked
+        // 4. After the initial session date
+        const availableRecurringSlots = allSessions.filter(session => {
+          const sessionDate = new Date(session.session_time)
+          const sessionTimeStr = format(sessionDate, 'h:mm a')
+          const sessionDayOfWeek = sessionDate.getDay()
 
-          // Find a matching available session for the next week
-          const nextWeekSession = allSessions.find(s =>
-            s.instance_date === nextWeekDateStr &&
-            format(new Date(s.session_time), 'h:mm a') === format(baseDate, 'h:mm a') &&
-            !s.is_booked
+          return (
+            sessionDayOfWeek === baseDayOfWeek && // Same day of week
+            sessionTimeStr === baseTimeStr && // Same time
+            !session.is_booked && // Not already booked
+            sessionDate > baseDate && // After the initial session
+            session.instance_date // Has a valid instance_date
           )
+        })
 
-          if (nextWeekSession) {
-            try {
-              const { data: recurringResult, error: recurringError } = await supabase
-                .rpc('admin_book_session', {
-                  target_user_id: userId,
-                  booking_time_param: nextWeekTimeStr,
-                  duration_param: 60,
-                  coach_id_param: null
-                })
+        // Sort by date to book in chronological order
+        availableRecurringSlots.sort((a, b) =>
+          new Date(a.session_time).getTime() - new Date(b.session_time).getTime()
+        )
 
-              if (!recurringError && recurringResult?.success) {
-                recurringResults.push({
-                  week: i + 1,
-                  date: nextWeekTimeStr,
-                  success: true
-                })
-                successCount++
-              } else {
-                console.warn(`Failed to book recurring session for week ${i + 1}:`, recurringError || recurringResult?.error)
-                recurringResults.push({
-                  week: i + 1,
-                  date: nextWeekTimeStr,
-                  success: false,
-                  error: recurringError?.message || recurringResult?.error
-                })
-              }
-            } catch (err) {
-              console.error(`Failed to book recurring session for week ${i + 1}:`, err)
-              recurringResults.push({
-                week: i + 1,
-                date: nextWeekTimeStr,
-                success: false,
-                error: 'Unexpected error'
+        console.log(`Found ${availableRecurringSlots.length} available recurring slots for ${baseTimeStr} on ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][baseDayOfWeek]}`)
+
+        // Book all available recurring slots (or maximum 12 if you want to keep that limit)
+        const slotsToBook = availableRecurringSlots.slice(0, 12) // Limit to 12 if desired
+
+        for (const slot of slotsToBook) {
+          try {
+            const slotTimeFormatted = format(new Date(slot.session_time), 'yyyy-MM-dd h:mm a')
+
+            const { data: recurringResult, error: recurringError } = await supabase
+              .rpc('admin_book_session', {
+                target_user_id: userId,
+                booking_time_param: slotTimeFormatted,
+                duration_param: 60,
+                coach_id_param: null
               })
+
+            if (!recurringError && recurringResult?.success) {
+              successCount++
+              console.log(`Successfully booked recurring session: ${slotTimeFormatted}`)
+            } else {
+              console.warn(`Failed to book recurring session ${slotTimeFormatted}:`, recurringError || recurringResult?.error)
             }
-          } else {
-            console.warn(`No available session found for ${nextWeekDateStr} at ${format(baseDate, 'h:mm a')}`)
-            recurringResults.push({
-              week: i + 1,
-              date: nextWeekTimeStr,
-              success: false,
-              error: 'No available session slot'
-            })
+          } catch (err) {
+            console.error(`Error booking recurring session ${slot.session_time}:`, err)
           }
         }
 
-        const failedCount = recurringResults.filter(r => !r.success).length
-        console.log(`Recurring booking results: ${successCount} successful, ${failedCount} failed`)
+        const totalAttempted = slotsToBook.length
+        const actuallyBooked = successCount - 1 // Subtract the initial booking
 
-        if (successCount > 1) {
-          alert(`Successfully booked ${successCount} sessions${failedCount > 0 ? ` (${failedCount} slots were unavailable or failed)` : ''}`)
+        if (actuallyBooked > 0) {
+          alert(`Successfully booked ${successCount} sessions total (1 initial + ${actuallyBooked} recurring)`)
         } else {
-          alert('Initial session booked, but no recurring sessions could be created (no available slots)')
+          alert('Initial session booked, but no recurring sessions were available for the same day/time')
         }
       } else {
         alert('Session booked successfully!')
